@@ -25,7 +25,7 @@ class DragMiniWindowController extends ChangeNotifier {
   bool _isDockedAtTop = false;
   bool _isTucked = false;
   double _dragProgress = 0.0;
-  double _playbackProgress = 0.0;
+  final ValueNotifier<double> _playbackProgress = ValueNotifier<double>(0.0);
   Offset? _miniPosition;
 
   // ── Public state ─────────────────────────────────────────────────────
@@ -51,9 +51,13 @@ class DragMiniWindowController extends ChangeNotifier {
   /// The free-form position of the mini panel, in screen coordinates.
   Offset? get miniPosition => _miniPosition;
 
+  /// Playback progress (0.0–1.0) as a [ValueListenable].
+  /// This allows granular updates of the UI without rebuilding the whole window.
+  ValueListenable<double> get playbackProgressListenable => _playbackProgress;
+
   /// Playback progress (0.0–1.0) shown as a thin progress bar
   /// on the mini panel or docked bar.
-  double get playbackProgress => _playbackProgress;
+  double get playbackProgress => _playbackProgress.value;
 
   // ── Internal setters (used by the widget) ────────────────────────────
 
@@ -153,8 +157,7 @@ class DragMiniWindowController extends ChangeNotifier {
 
   /// Set the playback progress (0.0–1.0) for the mini bar indicator.
   void setPlaybackProgress(double value) {
-    _playbackProgress = value.clamp(0.0, 1.0);
-    notifyListeners();
+    _playbackProgress.value = value.clamp(0.0, 1.0);
   }
 
   /// Tuck the mini panel behind the screen edge.

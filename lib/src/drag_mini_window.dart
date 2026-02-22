@@ -164,6 +164,7 @@ class _DragMiniWindowState extends State<DragMiniWindow>
 
   Size _getExpandedSize(Size screen) {
     if (widget.expandedSize != null) return widget.expandedSize!;
+    // Cache or ensure we don't call this too often if it's complex
     return screen;
   }
 
@@ -342,6 +343,7 @@ class _DragMiniWindowState extends State<DragMiniWindow>
   }
 
   void _onMiniPanStart(DragStartDetails d) {
+    _anim.stop();
     _miniPanStart = d.globalPosition;
     _miniPanDistance = 0.0;
   }
@@ -504,10 +506,10 @@ class _DragMiniWindowState extends State<DragMiniWindow>
                   clipBehavior: Clip.none,
                   children: [
                     _buildBackdrop(progress),
-                    if (_isDockingCandidateTop)
-                      _buildPlaceholder(safe, screen, true),
-                    if (_isDockingCandidateBottom)
-                      _buildPlaceholder(safe, screen, false),
+                    _buildPlaceholder(
+                        safe, screen, true, _isDockingCandidateTop),
+                    _buildPlaceholder(
+                        safe, screen, false, _isDockingCandidateBottom),
                     _buildWindowFrame(screen, safe, progress),
                   ],
                 );
@@ -536,23 +538,32 @@ class _DragMiniWindowState extends State<DragMiniWindow>
     );
   }
 
-  Widget _buildPlaceholder(EdgeInsets safe, Size screen, bool isTop) {
-    return Positioned(
+  Widget _buildPlaceholder(
+      EdgeInsets safe, Size screen, bool isTop, bool isVisible) {
+    return AnimatedPositioned(
+      duration: const Duration(milliseconds: 200),
+      curve: Curves.easeOutCubic,
       left: 8,
       right: 8,
       top: isTop
-          ? safe.top
-          : screen.height - safe.bottom - widget.style.dockedHeight,
+          ? (isVisible ? safe.top : safe.top - 20)
+          : (isVisible
+              ? screen.height - safe.bottom - widget.style.dockedHeight
+              : screen.height - safe.bottom - widget.style.dockedHeight + 20),
       height: widget.style.dockedHeight,
-      child: Container(
-        decoration: BoxDecoration(
-          color: widget.style.placeholderColor ??
-              Theme.of(context).primaryColor.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: widget.style.placeholderBorderColor ??
-                Theme.of(context).primaryColor.withValues(alpha: 0.3),
-            width: 1.5,
+      child: AnimatedOpacity(
+        duration: const Duration(milliseconds: 200),
+        opacity: isVisible ? 1.0 : 0.0,
+        child: Container(
+          decoration: BoxDecoration(
+            color: widget.style.placeholderColor ??
+                Theme.of(context).primaryColor.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: widget.style.placeholderBorderColor ??
+                  Theme.of(context).primaryColor.withValues(alpha: 0.3),
+              width: 1.5,
+            ),
           ),
         ),
       ),
@@ -561,7 +572,7 @@ class _DragMiniWindowState extends State<DragMiniWindow>
 
   Widget _buildWindowFrame(Size screen, EdgeInsets safe, double progress) {
     // Determine if we are truly in "Mini" mode (docked or fully minimized at rest)
-    final isMini = progress > 0.99 && !_isDraggingExpanded;
+    final isMini = progress > 0.9 && !_isDraggingExpanded;
     final isDocked = widget.controller.isDocked;
     final miniSize = _currentMiniSize;
     final expSize = _getExpandedSize(screen);
@@ -622,11 +633,15 @@ class _DragMiniWindowState extends State<DragMiniWindow>
       width: useAbsolutePosition ? targetSize.width : expSize.width,
       height: useAbsolutePosition ? targetSize.height : expSize.height,
       child: Transform(
-        transform: Matrix4.identity()
-          ..translate(useAbsolutePosition ? 0.0 : translateX,
-              useAbsolutePosition ? 0.0 : translateY)
-          ..scale(useAbsolutePosition ? 1.0 : scaleX,
-              useAbsolutePosition ? 1.0 : scaleY),
+        transform: Matrix4.diagonal3Values(
+          useAbsolutePosition ? 1.0 : scaleX,
+          useAbsolutePosition ? 1.0 : scaleY,
+          1.0,
+        )..setTranslationRaw(
+            useAbsolutePosition ? 0.0 : translateX,
+            useAbsolutePosition ? 0.0 : translateY,
+            0.0,
+          ),
         alignment: Alignment.center,
         child: MouseRegion(
           cursor: isMini ? SystemMouseCursors.click : MouseCursor.defer,
@@ -641,8 +656,13 @@ class _DragMiniWindowState extends State<DragMiniWindow>
                 _onExpandedPanStart(d);
               }
             },
-            onPanUpdate:
-                progress > 0.5 ? _onMiniPanUpdate : _onExpandedPanUpdate,
+            onPanUpdate: (d) {
+              if (progress > 0.5) {
+                _onMiniPanUpdate(d);
+              } else {
+                _onExpandedPanUpdate(d);
+              }
+            },
             onPanEnd: (d) {
               _isDraggingExpanded = false;
               if (progress > 0.5) {
@@ -684,7 +704,7 @@ class _DragMiniWindowState extends State<DragMiniWindow>
 
   Widget _buildContent(bool isMini, bool isDocked, double progress) {
     return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 200),
+      duration: widget.animationDuration,
       switchInCurve: Curves.easeIn,
       switchOutCurve: Curves.easeOut,
       child: isDocked && isMini
@@ -708,10 +728,15 @@ class _DragMiniWindowState extends State<DragMiniWindow>
       right: 0,
       bottom: 0,
       height: 2,
-      child: LinearProgressIndicator(
-        value: widget.controller.playbackProgress,
-        backgroundColor: Colors.white12,
-        color: widget.style.progressColor,
+      child: ValueListenableBuilder<double>(
+        valueListenable: widget.controller.playbackProgressListenable,
+        builder: (context, value, _) {
+          return LinearProgressIndicator(
+            value: value,
+            backgroundColor: Colors.white12,
+            color: widget.style.progressColor,
+          );
+        },
       ),
     );
   }

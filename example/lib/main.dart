@@ -43,10 +43,8 @@ class _DemoPageState extends State<DemoPage> {
   void initState() {
     super.initState();
     _timer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
-      setState(() {
-        _progress = (_progress + 0.005) % 1.0;
-        _controller.setPlaybackProgress(_progress);
-      });
+      _progress = (_progress + 0.005) % 1.0;
+      _controller.setPlaybackProgress(_progress);
     });
   }
 

@@ -1,12 +1,14 @@
 import 'package:chewie/chewie.dart';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
+
 import 'drag_mini_window.dart';
 import 'drag_mini_window_controller.dart';
 
 /// A high-level, "Plug & Play" video tutorial window that supports
 /// YouTube-style dragging, scaling, and professional aesthetics.
 class VideoMiniWindow extends StatefulWidget {
+  /// Creates a [VideoMiniWindow].
   const VideoMiniWindow({
     super.key,
     required this.url,
