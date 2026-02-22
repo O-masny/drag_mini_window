@@ -306,9 +306,25 @@ class _DragMiniWindowState extends State<DragMiniWindow>
     final screen = MediaQuery.sizeOf(context);
     final safe = MediaQuery.paddingOf(context);
     final miniSize = _currentMiniSize;
-    final currentPos = widget.controller.miniPosition ??
+    Offset currentPos = widget.controller.miniPosition ??
         _getDefaultMiniOrigin(
             screen, safe, miniSize, widget.style.defaultMiniAlignment);
+
+    // DOCK BREAK LOGIC: If we are docked and start dragging, "break" the dock
+    // and snap the player back to the finger position.
+    if (widget.controller.isDocked) {
+      if (_miniPanDistance > _tapDeadZone) {
+        widget.controller.setDocked(false);
+        // Position the mini window centered under the finger
+        currentPos = Offset(
+          d.globalPosition.dx - miniSize.width / 2,
+          d.globalPosition.dy - miniSize.height / 2,
+        );
+      } else {
+        // Still in deadzone, don't move yet
+        return;
+      }
+    }
 
     final newPos = currentPos + d.delta;
 
