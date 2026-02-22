@@ -45,18 +45,21 @@ class DragMiniWindowController extends ChangeNotifier {
 
   // ── Internal setters (used by the widget) ────────────────────────────
 
+  /// Updates the current drag progress. For internal use by [DragMiniWindow].
   @internal
   void setDragProgress(double value) {
     _dragProgress = value.clamp(0.0, 1.0);
     notifyListeners();
   }
 
+  /// Updates the mini panel position. For internal use by [DragMiniWindow].
   @internal
   void setMiniPosition(Offset position) {
     _miniPosition = position;
     notifyListeners();
   }
 
+  /// Confirms the minimization state. For internal use by [DragMiniWindow].
   @internal
   void confirmMinimize({required Offset landingPosition}) {
     _isMinimized = true;
@@ -66,12 +69,14 @@ class DragMiniWindowController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Confirms the dismissal state. For internal use by [DragMiniWindow].
   @internal
   void confirmDismiss() {
     _isDismissed = true;
     notifyListeners();
   }
 
+  /// Sets the docked state. For internal use by [DragMiniWindow].
   @internal
   void setDocked(bool docked) {
     if (_isDocked != docked) {
@@ -80,6 +85,7 @@ class DragMiniWindowController extends ChangeNotifier {
     }
   }
 
+  /// Sets the tucked state. For internal use by [DragMiniWindow].
   @internal
   void setTucked(bool tucked) {
     if (_isTucked != tucked) {

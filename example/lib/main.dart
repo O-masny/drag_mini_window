@@ -5,7 +5,9 @@ import 'package:flutter/material.dart';
 
 void main() => runApp(const App());
 
+/// Main application widget for the example.
 class App extends StatelessWidget {
+  /// Creates the [App].
   const App({super.key});
 
   @override
@@ -23,7 +25,9 @@ class App extends StatelessWidget {
   }
 }
 
+/// A demo page showcasing the [DragMiniWindow] functionality.
 class DemoPage extends StatefulWidget {
+  /// Creates the [DemoPage].
   const DemoPage({super.key});
 
   @override
@@ -77,6 +81,10 @@ class _DemoPageState extends State<DemoPage> {
           // The DragMiniWindow
           DragMiniWindow(
             controller: _controller,
+            style: DragMiniWindowStyle(
+              progressColor: Colors.red,
+              backdropColor: Colors.black.withValues(alpha: 0.8),
+            ),
             expandedContent: const _VideoPlayer(isMini: false),
             miniContent: const _VideoPlayer(isMini: true),
             title: const Column(
