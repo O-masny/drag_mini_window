@@ -756,7 +756,7 @@ class _DragMiniWindowState extends State<DragMiniWindow>
       );
     }
 
-    if (widget.closeButton != null) {
+    if (!isMini && widget.closeButton != null) {
       return Positioned(
         top: 16,
         right: 16,

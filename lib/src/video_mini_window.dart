@@ -14,7 +14,7 @@ class VideoMiniWindow extends StatefulWidget {
     required this.url,
     required this.title,
     this.subtitle = 'Tutoriál',
-    this.initialMinimized = true,
+    this.initialMinimized = false,
     this.autoPlay = true,
     this.onClose,
   });
@@ -107,12 +107,14 @@ class _VideoMiniWindowState extends State<VideoMiniWindow> {
         subtitle: widget.subtitle,
         dmw: _dmw,
         chewieController: _chewieController!,
-        onClose: widget.onClose,
+      ),
+      closeButton: IconButton(
+        icon: const Icon(Icons.close_rounded, color: Colors.white, size: 28),
+        onPressed: widget.onClose,
       ),
       miniContent: _VideoMiniContent(
         title: widget.title,
         videoController: _videoController!,
-        onClose: widget.onClose,
       ),
     );
   }
@@ -124,14 +126,12 @@ class _VideoExpandedContent extends StatelessWidget {
     required this.subtitle,
     required this.dmw,
     required this.chewieController,
-    this.onClose,
   });
 
   final String title;
   final String subtitle;
   final DragMiniWindowController dmw;
   final ChewieController chewieController;
-  final VoidCallback? onClose;
 
   @override
   Widget build(BuildContext context) {
@@ -189,11 +189,6 @@ class _VideoExpandedContent extends StatelessWidget {
                                   ],
                                 ),
                               ),
-                              IconButton(
-                                icon: const Icon(Icons.close_rounded,
-                                    color: Colors.white),
-                                onPressed: onClose,
-                              ),
                             ],
                           ),
                         ],
@@ -214,12 +209,10 @@ class _VideoMiniContent extends StatelessWidget {
   const _VideoMiniContent({
     required this.title,
     required this.videoController,
-    this.onClose,
   });
 
   final String title;
   final VideoPlayerController videoController;
-  final VoidCallback? onClose;
 
   @override
   Widget build(BuildContext context) {
