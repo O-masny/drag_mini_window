@@ -1,0 +1,29 @@
+name: drag_mini_window
+description: >
+  iOS/YouTube-style drag-to-place mini window for Flutter. Drag the expanded
+  overlay to any screen position — it shrinks as you move and lands as a
+  compact floating panel. Spring physics, haptic feedback, edge snapping,
+  and adaptive sizing for mobile, tablet, and web.
+version: 0.1.0
+homepage: https://github.com/masny/drag_mini_window
+
+topics:
+  - ui
+  - animation
+  - video
+  - overlay
+  - gesture
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+  flutter: ">=3.16.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  meta: ^1.11.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
