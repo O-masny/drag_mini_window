@@ -479,6 +479,14 @@ class _DragMiniWindowState extends State<DragMiniWindow>
     }
   }
 
+  void _onWindowTap() {
+    if (widget.controller.isMinimized) {
+      if (widget.enableHaptics && !kIsWeb) HapticFeedback.mediumImpact();
+      widget.controller.maximize();
+      widget.onMaximized?.call();
+    }
+  }
+
   // --- Build Modular Methods ---
 
   @override
@@ -671,6 +679,7 @@ class _DragMiniWindowState extends State<DragMiniWindow>
                 _onExpandedPanEnd(d);
               }
             },
+            onTap: _onWindowTap,
             child: Material(
               type: MaterialType.transparency,
               child: Container(
@@ -685,7 +694,8 @@ class _DragMiniWindowState extends State<DragMiniWindow>
                   children: [
                     Positioned.fill(
                       child: IgnorePointer(
-                        ignoring: _isDraggingExpanded ||
+                        ignoring: isMini ||
+                            _isDraggingExpanded ||
                             (progress > 0.01 && progress < 0.99),
                         child: _buildContent(isMini, isDocked, progress),
                       ),
@@ -751,7 +761,10 @@ class _DragMiniWindowState extends State<DragMiniWindow>
         bottom: 0,
         child: IconButton(
           icon: const Icon(Icons.close, color: Colors.white, size: 20),
-          onPressed: () => widget.controller.dismiss(),
+          onPressed: () {
+            widget.controller.dismiss();
+            widget.onDismissed?.call();
+          },
         ),
       );
     }

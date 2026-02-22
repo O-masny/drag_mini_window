@@ -95,10 +95,6 @@ class _VideoMiniWindowState extends State<VideoMiniWindow> {
 
   @override
   Widget build(BuildContext context) {
-    if (_videoController == null || !_videoController!.value.isInitialized) {
-      return const SizedBox.shrink();
-    }
-
     return DragMiniWindow(
       controller: _dmw,
       onDismissed: widget.onClose,
@@ -106,7 +102,8 @@ class _VideoMiniWindowState extends State<VideoMiniWindow> {
         title: widget.title,
         subtitle: widget.subtitle,
         dmw: _dmw,
-        chewieController: _chewieController!,
+        chewieController: _chewieController,
+        onClose: widget.onClose,
       ),
       closeButton: IconButton(
         icon: const Icon(Icons.close_rounded, color: Colors.white, size: 28),
@@ -114,7 +111,7 @@ class _VideoMiniWindowState extends State<VideoMiniWindow> {
       ),
       miniContent: _VideoMiniContent(
         title: widget.title,
-        videoController: _videoController!,
+        videoController: _videoController,
       ),
     );
   }
@@ -126,12 +123,14 @@ class _VideoExpandedContent extends StatelessWidget {
     required this.subtitle,
     required this.dmw,
     required this.chewieController,
+    this.onClose,
   });
 
   final String title;
   final String subtitle;
   final DragMiniWindowController dmw;
-  final ChewieController chewieController;
+  final ChewieController? chewieController;
+  final VoidCallback? onClose;
 
   @override
   Widget build(BuildContext context) {
@@ -151,8 +150,15 @@ class _VideoExpandedContent extends StatelessWidget {
                   // Video Frame
                   AspectRatio(
                     aspectRatio: chewieController
-                        .videoPlayerController.value.aspectRatio,
-                    child: Chewie(controller: chewieController),
+                            ?.videoPlayerController.value.aspectRatio ??
+                        16 / 9,
+                    child: chewieController != null
+                        ? Chewie(controller: chewieController!)
+                        : const Center(
+                            child: CircularProgressIndicator(
+                              color: Colors.white24,
+                            ),
+                          ),
                   ),
 
                   // Metadata & Controls
@@ -209,17 +215,22 @@ class _VideoMiniContent extends StatelessWidget {
   const _VideoMiniContent({
     required this.title,
     required this.videoController,
+    this.onClose,
   });
 
   final String title;
-  final VideoPlayerController videoController;
+  final VideoPlayerController? videoController;
+  final VoidCallback? onClose;
 
   @override
   Widget build(BuildContext context) {
     return Stack(
       fit: StackFit.expand,
       children: [
-        VideoPlayer(videoController),
+        if (videoController != null && videoController!.value.isInitialized)
+          VideoPlayer(videoController!)
+        else
+          Container(color: Colors.black),
         const DecoratedBox(
           decoration: BoxDecoration(
             gradient: LinearGradient(
