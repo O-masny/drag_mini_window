@@ -2,6 +2,8 @@ import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/physics.dart';
+import 'package:flutter/services.dart';
 
 import 'drag_mini_window_controller.dart';
 
@@ -33,6 +35,11 @@ class DragMiniWindow extends StatefulWidget {
     this.snapVelocityThreshold = 800.0,
     this.animationDuration = const Duration(milliseconds: 280),
     this.animationCurve = Curves.easeOutCubic,
+    this.enableHaptics = true,
+    this.enableEdgeSnap = true,
+    this.edgeSnapMargin = 12.0,
+    this.springStiffness = 350.0,
+    this.springDamping = 28.0,
     this.borderRadius = 16.0,
     this.miniBorderRadius = 12.0,
     this.miniBorderColor,
@@ -41,6 +48,11 @@ class DragMiniWindow extends StatefulWidget {
     this.onMaximized,
     this.onDismissed,
     this.closeButton,
+    this.dockedHeight = 64.0,
+    this.dockThreshold = 80.0,
+    this.dockedContent,
+    this.onDocked,
+    this.onUndocked,
   });
 
   /// State controller. Provide a [DragMiniWindowController] and call
@@ -78,8 +90,26 @@ class DragMiniWindow extends StatefulWidget {
   /// Duration of the snap-to-mini and snap-to-expanded animations.
   final Duration animationDuration;
 
-  /// Curve used for snap animations.
+  /// Curve used for snap animations (fallback when spring is not applicable).
   final Curve animationCurve;
+
+  /// Whether to trigger haptic feedback on minimize/maximize snaps.
+  /// Defaults to `true`.
+  final bool enableHaptics;
+
+  /// Whether the mini panel should snap to the nearest horizontal edge
+  /// after being released. Defaults to `true`.
+  final bool enableEdgeSnap;
+
+  /// Horizontal margin from screen edge used by edge-snap. Defaults to `12.0`.
+  final double edgeSnapMargin;
+
+  /// Stiffness of the spring used for snap animations. Higher = snappier.
+  /// Defaults to `350.0`.
+  final double springStiffness;
+
+  /// Damping ratio for the spring animation. Defaults to `28.0`.
+  final double springDamping;
 
   /// Border radius of the expanded dialog. Defaults to `16.0`.
   final double borderRadius;
@@ -106,6 +136,23 @@ class DragMiniWindow extends StatefulWidget {
   /// Optional close button widget. If provided, it will be shown in the
   /// expanded view.
   final Widget? closeButton;
+
+  /// Height of the docked bottom bar. Defaults to `64.0`.
+  final double dockedHeight;
+
+  /// Distance from bottom edge (in px) at which the dock zone activates.
+  /// Defaults to `80.0`.
+  final double dockThreshold;
+
+  /// Content shown when the panel is docked at the bottom.
+  /// If `null`, [miniContent] is used with full-width layout.
+  final Widget? dockedContent;
+
+  /// Called when the panel enters the dock zone.
+  final VoidCallback? onDocked;
+
+  /// Called when the panel leaves the dock zone.
+  final VoidCallback? onUndocked;
 
   @override
   State<DragMiniWindow> createState() => _DragMiniWindowState();
@@ -164,7 +211,7 @@ class _DragMiniWindowState extends State<DragMiniWindow>
     if (!_isDraggingExpanded) {
       final target = widget.controller.isMinimized ? 1.0 : 0.0;
       if ((_anim.value - target).abs() > 0.01) {
-        _anim.animateTo(target, curve: widget.animationCurve);
+        _springTo(target);
       }
     }
   }
@@ -311,24 +358,32 @@ class _DragMiniWindowState extends State<DragMiniWindow>
         progress > widget.snapThreshold || speed > widget.snapVelocityThreshold;
 
     if (toMini) {
-      _snapTo(
+      if (widget.enableHaptics) HapticFeedback.lightImpact();
+      _springTo(
         1.0,
         onComplete: () {
           final screen = MediaQuery.sizeOf(context);
           final safe = MediaQuery.paddingOf(context);
-          final landing = _miniLanding ??
+          var landing = _miniLanding ??
               _defaultMiniOrigin(
                 screen,
                 safe,
                 widget.miniSize,
                 widget.defaultMiniAlignment,
               );
+          // Edge-snap: slide to nearest horizontal edge.
+          if (widget.enableEdgeSnap) {
+            landing = _edgeSnap(landing, screen, safe, widget.miniSize);
+          }
           widget.controller.confirmMinimize(landingPosition: landing);
+          // Clear the ephemeral landing so subsequent repositioning
+          // (via controller.miniPosition) takes effect in build().
+          _miniLanding = null;
           widget.onMinimized?.call();
         },
       );
     } else {
-      _snapTo(
+      _springTo(
         0.0,
         onComplete: () {
           widget.controller.maximize();
@@ -358,9 +413,21 @@ class _DragMiniWindowState extends State<DragMiniWindow>
           widget.defaultMiniAlignment,
         );
 
-    widget.controller.setMiniPosition(
-      _clamp(currentPos + d.delta, screen, safe, widget.miniSize),
-    );
+    final newPos = _clamp(currentPos + d.delta, screen, safe, widget.miniSize);
+    widget.controller.setMiniPosition(newPos);
+
+    // Dock zone detection: bottom edge of panel close to bottom of screen
+    final panelBottom = newPos.dy + widget.miniSize.height;
+    final screenBottom = screen.height - safe.bottom;
+    final nearBottom = (screenBottom - panelBottom) < widget.dockThreshold;
+
+    if (nearBottom && !widget.controller.isDocked) {
+      widget.controller.setDocked(true);
+      widget.onDocked?.call();
+    } else if (!nearBottom && widget.controller.isDocked) {
+      widget.controller.setDocked(false);
+      widget.onUndocked?.call();
+    }
   }
 
   void _onMiniPanEnd(DragEndDetails d) {
@@ -381,22 +448,52 @@ class _DragMiniWindowState extends State<DragMiniWindow>
       widget.onDismissed?.call();
     } else if (_miniPanDistance < _tapDeadZone) {
       // Treat as tap → maximize
-      _snapTo(
+      if (widget.enableHaptics) HapticFeedback.mediumImpact();
+      _springTo(
         0.0,
         onComplete: () {
           widget.controller.maximize();
           widget.onMaximized?.call();
         },
       );
+    } else {
+      // Finished dragging mini panel — edge snap to nearest side.
+      if (widget.enableEdgeSnap) {
+        final screen = MediaQuery.sizeOf(context);
+        final safe = MediaQuery.paddingOf(context);
+        final pos = widget.controller.miniPosition;
+        if (pos != null) {
+          widget.controller.setMiniPosition(
+            _edgeSnap(pos, screen, safe, widget.miniSize),
+          );
+        }
+      }
     }
   }
 
-  // ── Animation snap ────────────────────────────────────────────────────
+  // ── Edge snap helper ──────────────────────────────────────────────────
 
-  void _snapTo(double target, {VoidCallback? onComplete}) {
-    _anim
-        .animateTo(target, curve: widget.animationCurve)
-        .whenCompleteOrCancel(onComplete ?? () {});
+  /// Returns [pos] with `dx` adjusted to the nearest horizontal screen edge.
+  Offset _edgeSnap(Offset pos, Size screen, EdgeInsets safe, Size size) {
+    final center = pos.dx + size.width / 2;
+    final snapLeft = widget.edgeSnapMargin + safe.left;
+    final snapRight =
+        screen.width - size.width - widget.edgeSnapMargin - safe.right;
+    final dx = center < screen.width / 2 ? snapLeft : snapRight;
+    return Offset(dx, pos.dy);
+  }
+
+  // ── Animation snap (spring-based) ─────────────────────────────────────
+
+  /// Animate to [target] using a critically-damped spring simulation.
+  void _springTo(double target, {VoidCallback? onComplete}) {
+    final spring = SpringDescription(
+      mass: 1.0,
+      stiffness: widget.springStiffness,
+      damping: widget.springDamping,
+    );
+    final sim = SpringSimulation(spring, _anim.value, target, 0.0);
+    _anim.animateWith(sim).whenCompleteOrCancel(onComplete ?? () {});
   }
 
   // ── Build ─────────────────────────────────────────────────────────────
@@ -411,10 +508,54 @@ class _DragMiniWindowState extends State<DragMiniWindow>
         final progress = widget.controller.dragProgress;
         final screen = MediaQuery.sizeOf(context);
         final safe = MediaQuery.paddingOf(context);
+        final isDocked = widget.controller.isDocked;
 
         final expSize = _expandedSize(screen);
         final miniSize = widget.miniSize;
 
+        // ── Docked state: full-width bar at the bottom ──────────────
+        if (isDocked && progress > 0.9 && !_isDraggingExpanded) {
+          final dockedWidth = screen.width;
+          final dockedH = widget.dockedHeight;
+          final dockedTop = screen.height - safe.bottom - dockedH;
+
+          return SizedBox.expand(
+            child: Stack(
+              children: [
+                Positioned(
+                  left: 0,
+                  top: dockedTop,
+                  child: GestureDetector(
+                    onPanStart: _onMiniPanStart,
+                    onPanUpdate: _onMiniPanUpdate,
+                    onPanEnd: _onMiniPanEnd,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      curve: Curves.easeOutCubic,
+                      width: dockedWidth,
+                      height: dockedH,
+                      decoration: BoxDecoration(
+                        color: Colors.black,
+                        border: Border(
+                          top: BorderSide(
+                            color: widget.miniBorderColor ??
+                                Theme.of(context).colorScheme.primary,
+                            width: widget.miniBorderWidth,
+                          ),
+                        ),
+                      ),
+                      child: ClipRect(
+                        child: widget.dockedContent ?? widget.miniContent,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        // ── Normal floating state ───────────────────────────────────
         final currentWidth = lerpDouble(
           expSize.width,
           miniSize.width,
@@ -471,7 +612,7 @@ class _DragMiniWindowState extends State<DragMiniWindow>
                       onTap: isMini
                           ? null
                           : () {
-                              _snapTo(
+                              _springTo(
                                 1.0,
                                 onComplete: () {
                                   widget.controller.minimize();
@@ -530,7 +671,7 @@ class _DragMiniWindowState extends State<DragMiniWindow>
                                 right: 8,
                                 child: GestureDetector(
                                   onTap: () {
-                                    _snapTo(
+                                    _springTo(
                                       1.0,
                                       onComplete: () {
                                         widget.controller.minimize();

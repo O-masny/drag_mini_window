@@ -14,6 +14,7 @@ import 'package:flutter/foundation.dart';
 class DragMiniWindowController extends ChangeNotifier {
   bool _isMinimized = false;
   bool _isDismissed = false;
+  bool _isDocked = false;
 
   /// Current drag/animation progress.
   /// 0.0 = fully expanded, 1.0 = fully minimized.
@@ -30,6 +31,9 @@ class DragMiniWindowController extends ChangeNotifier {
 
   /// Whether the window is currently dismissed (closed).
   bool get isDismissed => _isDismissed;
+
+  /// Whether the mini panel is currently docked at the bottom edge.
+  bool get isDocked => _isDocked;
 
   /// Normalized progress between expanded (0.0) and minimized (1.0).
   /// Useful for building custom interpolated effects.
@@ -72,6 +76,15 @@ class DragMiniWindowController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Called by the widget when the panel enters/exits the dock zone.
+  @internal
+  void setDocked(bool docked) {
+    if (_isDocked != docked) {
+      _isDocked = docked;
+      notifyListeners();
+    }
+  }
+
   // ── Public API ───────────────────────────────────────────────────────
 
   /// Programmatically minimize the window.
@@ -88,6 +101,7 @@ class DragMiniWindowController extends ChangeNotifier {
   /// [DragMiniWindow.defaultMiniAlignment] rather than the previous landing spot.
   void maximize() {
     _isDismissed = false;
+    _isDocked = false;
     _isMinimized = false;
     _dragProgress = 0.0;
     _miniPosition = null;
@@ -97,6 +111,20 @@ class DragMiniWindowController extends ChangeNotifier {
   /// Programmatically dismiss (close) the window.
   void dismiss() {
     _isDismissed = true;
+    notifyListeners();
+  }
+
+  /// Programmatically dock the mini panel at the bottom edge.
+  void dock() {
+    _isDocked = true;
+    _isMinimized = true;
+    _dragProgress = 1.0;
+    notifyListeners();
+  }
+
+  /// Programmatically undock back to floating mini.
+  void undock() {
+    _isDocked = false;
     notifyListeners();
   }
 

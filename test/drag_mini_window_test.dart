@@ -11,6 +11,7 @@ void main() {
 
     test('initial state is maximized', () {
       expect(controller.isMinimized, false);
+      expect(controller.isDismissed, false);
       expect(controller.dragProgress, 0.0);
       expect(controller.miniPosition, isNull);
     });
@@ -21,11 +22,13 @@ void main() {
       expect(controller.dragProgress, 1.0);
     });
 
-    test('maximize() clears isMinimized and dragProgress', () {
+    test('maximize() clears isMinimized, dragProgress, and miniPosition', () {
       controller.minimize();
+      controller.setMiniPosition(const Offset(100, 200));
       controller.maximize();
       expect(controller.isMinimized, false);
       expect(controller.dragProgress, 0.0);
+      expect(controller.miniPosition, isNull);
     });
 
     test('toggle() switches state', () {
@@ -61,6 +64,24 @@ void main() {
       expect(controller.isMinimized, true);
       expect(controller.dragProgress, 1.0);
       expect(controller.miniPosition, landing);
+      expect(controller.isDismissed, false);
+    });
+
+    test('dismiss() sets isDismissed', () {
+      controller.dismiss();
+      expect(controller.isDismissed, true);
+    });
+
+    test('maximize() clears isDismissed', () {
+      controller.dismiss();
+      controller.maximize();
+      expect(controller.isDismissed, false);
+    });
+
+    test('minimize() clears isDismissed', () {
+      controller.dismiss();
+      controller.minimize();
+      expect(controller.isDismissed, false);
     });
   });
 
@@ -112,6 +133,31 @@ void main() {
 
       expect(find.text('mini'), findsOneWidget);
       expect(find.text('expanded'), findsNothing);
+    });
+
+    testWidgets('renders nothing when dismissed', (tester) async {
+      final controller = DragMiniWindowController()..dismiss();
+      addTearDown(controller.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Stack(
+              children: [
+                DragMiniWindow(
+                  controller: controller,
+                  expandedContent: const Text('expanded'),
+                  miniContent: const Text('mini'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('expanded'), findsNothing);
+      expect(find.text('mini'), findsNothing);
     });
   });
 }
