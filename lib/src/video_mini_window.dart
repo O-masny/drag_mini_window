@@ -46,7 +46,8 @@ class _VideoMiniWindowState extends State<VideoMiniWindow> {
   late DragMiniWindowController _dmw;
   VideoPlayerController? _videoController;
   ChewieController? _chewieController;
-  final GlobalKey _videoKey = GlobalKey();
+  final GlobalKey _videoFullKey = GlobalKey();
+  final GlobalKey _videoMiniKey = GlobalKey();
   bool _isDisposed = false;
 
   @override
@@ -83,7 +84,7 @@ class _VideoMiniWindowState extends State<VideoMiniWindow> {
           bufferedColor: Colors.white54,
         ),
       );
-      setState(() {});
+      if (mounted) setState(() {});
     } catch (e) {
       debugPrint('Error initializing video: $e');
     }
@@ -108,7 +109,7 @@ class _VideoMiniWindowState extends State<VideoMiniWindow> {
         dmw: _dmw,
         chewieController: _chewieController,
         videoController: _videoController,
-        videoFrameKey: _videoKey,
+        videoFrameKey: _videoFullKey,
         onClose: widget.onClose,
       ),
       closeButton: widget.onClose != null
@@ -122,7 +123,7 @@ class _VideoMiniWindowState extends State<VideoMiniWindow> {
         title: widget.title,
         videoController: _videoController,
         chewieController: _chewieController,
-        videoFrameKey: _videoKey,
+        videoFrameKey: _videoMiniKey,
       ),
     );
   }

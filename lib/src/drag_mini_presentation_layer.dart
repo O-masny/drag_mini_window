@@ -111,13 +111,8 @@ class DragMiniPresentationLayer extends StatelessWidget {
   }
 
   Widget _buildContent(double progress) {
-    // Cross-fade or direct switch based on progress
-    final showMini = progress > 0.5;
-    return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 200),
-      child: showMini
-          ? KeyedSubtree(key: const ValueKey('mini'), child: miniContent)
-          : KeyedSubtree(key: const ValueKey('exp'), child: expandedContent),
-    );
+    // Direct switch based on progress to avoid GlobalKey collisions
+    // which occur during AnimatedSwitcher's cross-fade transition.
+    return progress > 0.5 ? miniContent : expandedContent;
   }
 }
