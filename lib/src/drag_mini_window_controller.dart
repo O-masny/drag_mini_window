@@ -24,6 +24,7 @@ class DragMiniWindowController extends ChangeNotifier {
   bool _isDocked = false;
   bool _isDockedAtTop = false;
   bool _isTucked = false;
+  bool _isDragging = false;
   double _dragProgress = 0.0;
   final ValueNotifier<double> _playbackProgress = ValueNotifier<double>(0.0);
   Offset? _miniPosition;
@@ -44,6 +45,9 @@ class DragMiniWindowController extends ChangeNotifier {
 
   /// Whether the mini panel is tucked behind the screen edge.
   bool get isTucked => _isTucked;
+
+  /// Whether the window is currently being dragged.
+  bool get isDragging => _isDragging;
 
   /// Normalized progress between expanded (0.0) and minimized (1.0).
   double get dragProgress => _dragProgress;
@@ -107,6 +111,15 @@ class DragMiniWindowController extends ChangeNotifier {
   void setTucked(bool tucked) {
     if (_isTucked != tucked) {
       _isTucked = tucked;
+      notifyListeners();
+    }
+  }
+
+  /// Sets the dragging state. For internal use by [DragMiniWindow].
+  @internal
+  void setDragging(bool dragging) {
+    if (_isDragging != dragging) {
+      _isDragging = dragging;
       notifyListeners();
     }
   }

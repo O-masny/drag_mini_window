@@ -83,8 +83,9 @@ class _DemoPageState extends State<DemoPage> {
               progressColor: Colors.red,
               backdropColor: Colors.black.withValues(alpha: 0.8),
             ),
-            expandedContent: const _VideoPlayer(isMini: false),
-            miniContent: const _VideoPlayer(isMini: true),
+            expandedContent:
+                _VideoPlayer(isMini: false, controller: _controller),
+            miniContent: _VideoPlayer(isMini: true, controller: _controller),
             title: const Column(
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -126,50 +127,60 @@ class _DemoPageState extends State<DemoPage> {
 }
 
 class _VideoPlayer extends StatelessWidget {
-  const _VideoPlayer({required this.isMini});
+  const _VideoPlayer({required this.isMini, required this.controller});
   final bool isMini;
+  final DragMiniWindowController controller;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: Colors.black,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          // Fake Video Content
-          Image.network(
-            'https://picsum.photos/seed/flutter/1280/720',
-            fit: BoxFit.cover,
-            width: double.infinity,
-            height: double.infinity,
-          ),
-          if (!isMini)
-            Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Colors.black54, Colors.transparent, Colors.black54],
-                ),
+    return ListenableBuilder(
+      listenable: controller,
+      builder: (context, _) {
+        final hideOverlays = controller.isDragging || isMini;
+        return Container(
+          color: Colors.black,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              // Fake Video Content
+              Image.network(
+                'https://picsum.photos/seed/flutter/1280/720',
+                fit: BoxFit.cover,
+                width: double.infinity,
+                height: double.infinity,
               ),
-            ),
-
-          if (!isMini)
-            const Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.play_circle_fill, size: 80, color: Colors.white),
-                SizedBox(height: 20),
-                Text('04:20 / 12:00', style: TextStyle(color: Colors.white70)),
-              ],
-            ),
-
-          if (isMini)
-            const Positioned(
-              child: Icon(Icons.pause, size: 30, color: Colors.white),
-            ),
-        ],
-      ),
+              if (!hideOverlays)
+                Container(
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.black54,
+                        Colors.transparent,
+                        Colors.black54
+                      ],
+                    ),
+                  ),
+                ),
+              if (!hideOverlays)
+                const Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.play_circle_fill, size: 80, color: Colors.white),
+                    SizedBox(height: 20),
+                    Text('04:20 / 12:00',
+                        style: TextStyle(color: Colors.white70)),
+                  ],
+                ),
+              if (isMini)
+                const Positioned(
+                  child: Icon(Icons.pause, size: 30, color: Colors.white),
+                ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

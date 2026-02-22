@@ -193,7 +193,7 @@ class _DragMiniWindowState extends State<DragMiniWindow>
     final m = widget.style.edgeSnapMargin;
     return Offset(
       pos.dx.clamp(m + safe.left, screen.width - size.width - m - safe.right),
-      pos.dy.clamp(m + safe.top, screen.height - size.height - m - safe.bottom),
+      pos.dy.clamp(0.0, screen.height - size.height - m - safe.bottom),
     );
   }
 
@@ -234,6 +234,7 @@ class _DragMiniWindowState extends State<DragMiniWindow>
     _dragStartFingerPos = d.globalPosition;
     _dragStartProgress = widget.controller.dragProgress;
     _isDraggingExpanded = true;
+    widget.controller.setDragging(true);
     _miniPanDistance = 0.0;
     _anim.stop();
   }
@@ -245,29 +246,49 @@ class _DragMiniWindowState extends State<DragMiniWindow>
     final miniSize = _currentMiniSize;
 
     // Relative swipe progress:
-    // Moving from bottom to top or top to bottom based on initial start.
     final deltaY = _fingerPos.dy - _dragStartFingerPos.dy;
-    final maxSwipe = screen.height * 0.5; // Swipe 50% screen = full minimize
-    final progressDelta = (deltaY / maxSwipe).clamp(-1.0, 1.0);
-    final progress = (_dragStartProgress + progressDelta).clamp(0.0, 1.0);
+    final maxSwipe = screen.height * 0.5;
+    final progressDelta = (deltaY / maxSwipe).clamp(-1.5, 1.0);
+    final progress = (_dragStartProgress + progressDelta).clamp(-0.2, 1.0);
 
     final landing = Offset(
       _fingerPos.dx - miniSize.width / 2,
       _fingerPos.dy - miniSize.height / 2,
     );
 
-    widget.controller.setDragProgress(progress);
-    _anim.value = progress;
+    // Keep progress at 0 if we are only slightly dragging up to prevent jitter
+    final effectiveProgress = progress < 0 ? 0.0 : progress;
+
+    widget.controller.setDragProgress(effectiveProgress);
+    _anim.value = effectiveProgress;
     _miniLanding = _clampToSafe(landing, screen, safe, miniSize);
   }
 
   void _onExpandedPanEnd(DragEndDetails d) {
     _isDraggingExpanded = false;
+    widget.controller.setDragging(false);
     final progress = widget.controller.dragProgress;
-    final velocity = d.velocity.pixelsPerSecond.dy;
+    final velocityY = d.velocity.pixelsPerSecond.dy;
+    final velocityX = d.velocity.pixelsPerSecond.dx;
+
+    // Flick UP from maximized = Dismiss
+    if (velocityY < -widget.snapVelocityThreshold &&
+        widget.controller.dragProgress < 0.2) {
+      widget.controller.confirmDismiss();
+      widget.onDismissed?.call();
+      return;
+    }
+
+    // Flick LEFT/RIGHT from maximized = Dismiss
+    if (velocityX.abs() > widget.snapVelocityThreshold &&
+        widget.controller.dragProgress < 0.2) {
+      widget.controller.confirmDismiss();
+      widget.onDismissed?.call();
+      return;
+    }
 
     // Flick down = minimize
-    if (velocity > widget.snapVelocityThreshold) {
+    if (velocityY > widget.snapVelocityThreshold) {
       if (widget.enableHaptics && !kIsWeb) HapticFeedback.lightImpact();
       _springTo(1.0, onComplete: () {
         final screen = MediaQuery.sizeOf(context);
@@ -344,6 +365,7 @@ class _DragMiniWindowState extends State<DragMiniWindow>
 
   void _onMiniPanStart(DragStartDetails d) {
     _anim.stop();
+    widget.controller.setDragging(true);
     _miniPanStart = d.globalPosition;
     _miniPanDistance = 0.0;
   }
@@ -384,13 +406,12 @@ class _DragMiniWindowState extends State<DragMiniWindow>
     // Detect Snap Zones
     final centerX = newPos.dx + miniSize.width / 2;
     final isInCenterZone =
-        centerX > screen.width * 0.3 && centerX < screen.width * 0.7;
-    final distFromTop = newPos.dy + safe.top;
-    final distFromBottom =
-        screen.height - (newPos.dy + miniSize.height) - safe.bottom;
+        centerX > screen.width * 0.1 && centerX < screen.width * 0.9;
+    final distFromTop = newPos.dy;
+    final distFromBottom = screen.height - (newPos.dy + miniSize.height);
 
-    final isTopCandidate = isInCenterZone && distFromTop < 60.0;
-    final isBottomCandidate = isInCenterZone && distFromBottom < 60.0;
+    final isTopCandidate = isInCenterZone && distFromTop < 80.0;
+    final isBottomCandidate = isInCenterZone && distFromBottom < 80.0;
 
     if (isTopCandidate != _isDockingCandidateTop ||
         isBottomCandidate != _isDockingCandidateBottom) {
@@ -419,6 +440,7 @@ class _DragMiniWindowState extends State<DragMiniWindow>
   }
 
   void _onMiniPanEnd(DragEndDetails d) {
+    widget.controller.setDragging(false);
     if (_miniPanDistance < _tapDeadZone) {
       if (widget.enableHaptics && !kIsWeb) HapticFeedback.mediumImpact();
       widget.controller.maximize();
@@ -484,6 +506,12 @@ class _DragMiniWindowState extends State<DragMiniWindow>
       if (widget.enableHaptics && !kIsWeb) HapticFeedback.mediumImpact();
       widget.controller.maximize();
       widget.onMaximized?.call();
+    } else {
+      // Tap outside while maximized: YouTube minimizes the player
+      // if you tap the background "beside" the video content.
+      // We'll implement this as a baseline here.
+      widget.controller.minimize();
+      widget.onMinimized?.call();
     }
   }
 
@@ -533,7 +561,7 @@ class _DragMiniWindowState extends State<DragMiniWindow>
     if (progress >= 0.99) return const SizedBox.shrink();
     return Positioned.fill(
       child: IgnorePointer(
-        ignoring: progress > 0.5,
+        ignoring: progress > 0.9,
         child: Opacity(
           opacity: (1.0 - progress).clamp(0.0, 1.0) *
               (widget.style.backdropColor.a / 255.0),
@@ -713,13 +741,14 @@ class _DragMiniWindowState extends State<DragMiniWindow>
   }
 
   Widget _buildContent(bool isMini, bool isDocked, double progress) {
+    final showMini = isMini || progress > 0.1 || widget.controller.isDragging;
     return AnimatedSwitcher(
       duration: widget.animationDuration,
       switchInCurve: Curves.easeIn,
       switchOutCurve: Curves.easeOut,
       child: isDocked && isMini
           ? _buildDockedBar()
-          : (progress > 0.8
+          : (showMini
               ? KeyedSubtree(
                   key: const ValueKey('mini'),
                   child: widget.miniContent,

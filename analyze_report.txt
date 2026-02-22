@@ -1,0 +1,1 @@
+[warning] A value for optional parameter 'onClose' isn't ever given (C:\Users\masny\Desktop\portfolio\drag_mini_window\lib\src\video_mini_window.dart:218:10)
