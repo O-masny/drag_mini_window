@@ -23,9 +23,6 @@ class DragMiniWindowController extends ChangeNotifier {
   double _progress = 0.0;
   Offset _position = Offset.zero;
 
-  /// Current logical size of the window.
-  final Size _size = Size.zero;
-
   // --- Animation Physics ---
   Ticker? _ticker;
   Simulation? _simulation;
@@ -38,9 +35,6 @@ class DragMiniWindowController extends ChangeNotifier {
 
   /// Current logical position of the window.
   Offset get position => _position;
-
-  /// Current logical size of the window.
-  Size get size => _size;
 
   /// Returns true if the window is currently dismissed.
   bool get isDismissed => _status == DragMiniStatus.dismissed;
@@ -68,13 +62,37 @@ class DragMiniWindowController extends ChangeNotifier {
   // --- Public API ---
 
   /// Animates the window to the maximized (full) state.
-  void maximize() => _animateToStatus(DragMiniStatus.full);
+  void maximize() {
+    snapWithPhysics(
+      velocity: -1.0,
+      targetProgress: 0.0,
+      targetStatus: DragMiniStatus.full,
+    );
+  }
 
   /// Animates the window to the minimized (mini) state.
-  void minimize() => _animateToStatus(DragMiniStatus.mini);
+  void minimize() {
+    snapWithPhysics(
+      velocity: 1.0,
+      targetProgress: 1.0,
+      targetStatus: DragMiniStatus.mini,
+    );
+  }
 
   /// Animates the window to the dismissed (closed) state.
-  void dismiss() => _animateToStatus(DragMiniStatus.dismissed);
+  void dismiss() {
+    _stopAnimation();
+    _status = DragMiniStatus.dismissed;
+    notifyListeners();
+  }
+
+  /// Transitions the window to the docked (full-width bar) state.
+  void dock() {
+    _stopAnimation();
+    _status = DragMiniStatus.docked;
+    _progress = 1.0;
+    notifyListeners();
+  }
 
   /// Toggles between minimized and maximized states.
   void toggle() => isMinimized ? maximize() : minimize();
@@ -128,7 +146,6 @@ class DragMiniWindowController extends ChangeNotifier {
     ),
   }) {
     _stopAnimation();
-    // Use a transient state if needed, but here we just snap the progress
     _simulation = SpringSimulation(spring, _progress, targetProgress, velocity);
     _ticker ??= Ticker(_onTick);
     _ticker!.start();
@@ -145,13 +162,6 @@ class DragMiniWindowController extends ChangeNotifier {
       _progress = isMini ? 1.0 : 0.0;
       _stopAnimation();
     }
-    notifyListeners();
-  }
-
-  void _animateToStatus(DragMiniStatus target) {
-    _stopAnimation();
-    _status = target;
-    _progress = (target == DragMiniStatus.full) ? 0.0 : 1.0;
     notifyListeners();
   }
 

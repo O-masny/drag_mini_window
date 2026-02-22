@@ -8,7 +8,7 @@ enum DragMiniStatus {
   /// Window is minimized to a small floating panel.
   mini,
 
-  /// Window is docked at top or bottom as a bar.
+  /// Window is docked as a full-width bar.
   docked,
 
   /// Window is hidden/closed.
@@ -17,20 +17,17 @@ enum DragMiniStatus {
   /// Window is currently being moved vertically (minimizing/maximizing).
   draggingVertical,
 
-  /// Window is currently being moved horizontally (dismissing).
+  /// Window is currently being moved horizontally (repositioning/dismissing).
   draggingHorizontal,
-
-  /// Window is tucked into a screen edge.
-  tucked,
 }
 
 /// A snapshot of the window's geometry and state.
 class DragMiniState {
+  /// Creates a [DragMiniState] snapshot.
   const DragMiniState({
     required this.status,
     required this.progress,
     required this.position,
-    required this.size,
   });
 
   /// Current machine status.
@@ -42,21 +39,16 @@ class DragMiniState {
   /// Logical position of the window.
   final Offset position;
 
-  /// Logical size of the window.
-  final Size size;
-
   /// Creates a copy of this state with the given fields replaced.
   DragMiniState copyWith({
     DragMiniStatus? status,
     double? progress,
     Offset? position,
-    Size? size,
   }) {
     return DragMiniState(
       status: status ?? this.status,
       progress: progress ?? this.progress,
       position: position ?? this.position,
-      size: size ?? this.size,
     );
   }
 }

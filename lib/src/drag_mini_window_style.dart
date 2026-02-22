@@ -6,7 +6,7 @@ class DragMiniWindowStyle {
   const DragMiniWindowStyle({
     this.webMiniSize = const Size(360, 202),
     this.mobileMiniSize = const Size(160, 90),
-    this.defaultMiniAlignment = Alignment.bottomRight,
+    this.defaultMiniAlignment = Alignment.topRight,
     this.backdropColor = const Color(0xD9000000),
     this.borderRadius = 16.0,
     this.miniBorderRadius = 12.0,

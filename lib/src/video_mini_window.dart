@@ -46,8 +46,7 @@ class _VideoMiniWindowState extends State<VideoMiniWindow> {
   late DragMiniWindowController _dmw;
   VideoPlayerController? _videoController;
   ChewieController? _chewieController;
-  final GlobalKey _videoFullKey = GlobalKey();
-  final GlobalKey _videoMiniKey = GlobalKey();
+  final GlobalKey _videoFrameKey = GlobalKey();
   bool _isDisposed = false;
 
   @override
@@ -109,7 +108,7 @@ class _VideoMiniWindowState extends State<VideoMiniWindow> {
         dmw: _dmw,
         chewieController: _chewieController,
         videoController: _videoController,
-        videoFrameKey: _videoFullKey,
+        videoFrameKey: _videoFrameKey,
         onClose: widget.onClose,
       ),
       closeButton: widget.onClose != null
@@ -120,7 +119,7 @@ class _VideoMiniWindowState extends State<VideoMiniWindow> {
             )
           : null,
       miniContent: _VideoMiniContent(
-        videoFrameKey: _videoMiniKey,
+        videoFrameKey: _videoFrameKey,
         chewieController: _chewieController,
       ),
     );
@@ -249,7 +248,7 @@ class _VideoExpandedContent extends StatelessWidget {
                       Text(
                         subtitle,
                         style: TextStyle(
-                          color: Colors.white.withOpacity(0.7),
+                          color: Colors.white.withValues(alpha: 0.7),
                           fontSize: 16,
                         ),
                       ),
@@ -259,7 +258,7 @@ class _VideoExpandedContent extends StatelessWidget {
                       Text(
                         'V tomto tutoriálu se dozvíte vše potřebné pro efektivní práci se systémem ShopIO.',
                         style: TextStyle(
-                          color: Colors.white.withOpacity(0.5),
+                          color: Colors.white.withValues(alpha: 0.5),
                           height: 1.5,
                         ),
                       ),
@@ -286,31 +285,35 @@ class _VideoMiniContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        _VideoFrame(
-          key: videoFrameKey,
-          chewieController: chewieController,
-          isMini: true,
-        ),
+    // IMPORTANT: IgnorePointer ensures that mini video controls don't
+    // swallow gestures (taps/drags) meant for the DragMiniWindow.
+    return IgnorePointer(
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          _VideoFrame(
+            key: videoFrameKey,
+            chewieController: chewieController,
+            isMini: true,
+          ),
 
-        // Mini decoration (overlay)
-        Positioned.fill(
-          child: Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.transparent,
-                  Colors.black.withOpacity(0.3),
-                ],
+          // Mini decoration (overlay)
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.transparent,
+                    Colors.black.withValues(alpha: 0.4),
+                  ],
+                ),
               ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

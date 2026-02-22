@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import 'drag_mini_gesture_handler.dart';
 import 'drag_mini_presentation_layer.dart';
 import 'drag_mini_window_controller.dart';
 import 'drag_mini_window_style.dart';
@@ -81,17 +80,15 @@ class _DragMiniWindowState extends State<DragMiniWindow> {
   Widget build(BuildContext context) {
     if (widget.controller.isDismissed) return const SizedBox.shrink();
 
-    return DragMiniGestureHandler(
+    return DragMiniPresentationLayer(
       controller: widget.controller,
-      child: DragMiniPresentationLayer(
-        controller: widget.controller,
-        style: widget.style,
-        title: widget.title,
-        thumbnail: widget.thumbnail,
-        expandedContent:
-            KeyedSubtree(key: _expandedKey, child: widget.expandedContent),
-        miniContent: KeyedSubtree(key: _miniKey, child: widget.miniContent),
-      ),
+      style: widget.style,
+      title: widget.title,
+      thumbnail: widget.thumbnail,
+      closeButton: widget.closeButton,
+      expandedContent:
+          KeyedSubtree(key: _expandedKey, child: widget.expandedContent),
+      miniContent: KeyedSubtree(key: _miniKey, child: widget.miniContent),
     );
   }
 }

@@ -1,0 +1,7 @@
+[error] The method 'DragMiniGestureHandler' isn't defined for the type 'DragMiniPresentationLayer' (C:\Users\masny\Desktop\portfolio\drag_mini_window\lib\src\drag_mini_presentation_layer.dart:111:26)
+[warning] Unused import: 'drag_mini_window_state.dart' (C:\Users\masny\Desktop\portfolio\drag_mini_window\lib\src\drag_mini_presentation_layer.dart:6:8)
+[warning] The declaration '_animateToStatus' isn't referenced (C:\Users\masny\Desktop\portfolio\drag_mini_window\lib\src\drag_mini_window_controller.dart:167:8)
+[info] Missing documentation for a public member (C:\Users\masny\Desktop\portfolio\drag_mini_window\lib\src\drag_mini_window_state.dart:29:9)
+[info] 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss (C:\Users\masny\Desktop\portfolio\drag_mini_window\lib\src\video_mini_window.dart:252:47)
+[info] 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss (C:\Users\masny\Desktop\portfolio\drag_mini_window\lib\src\video_mini_window.dart:262:47)
+[info] 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss (C:\Users\masny\Desktop\portfolio\drag_mini_window\lib\src\video_mini_window.dart:310:34)
