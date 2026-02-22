@@ -1,0 +1,7 @@
+[info] 'translate' is deprecated and shouldn't be used. Use translateByVector3, translateByVector4, or translateByDouble instead (C:\Users\masny\Desktop\portfolio\drag_mini_window\lib\src\drag_mini_presentation_layer.dart:91:25)
+[info] 'scale' is deprecated and shouldn't be used. Use scaleByVector3, scaleByVector4, or scaleByDouble instead (C:\Users\masny\Desktop\portfolio\drag_mini_window\lib\src\drag_mini_presentation_layer.dart:92:25)
+[info] Missing documentation for a public member (C:\Users\masny\Desktop\portfolio\drag_mini_window\lib\src\drag_mini_window_controller.dart:111:8)
+[info] Missing documentation for a public member (C:\Users\masny\Desktop\portfolio\drag_mini_window\lib\src\drag_mini_window_controller.dart:117:8)
+[info] Missing documentation for a public member (C:\Users\masny\Desktop\portfolio\drag_mini_window\lib\src\drag_mini_window_controller.dart:120:8)
+[info] Missing documentation for a public member (C:\Users\masny\Desktop\portfolio\drag_mini_window\lib\src\drag_mini_window_controller.dart:12:3)
+[info] Missing documentation for a public member (C:\Users\masny\Desktop\portfolio\drag_mini_window\lib\src\drag_mini_window_state.dart:29:9)

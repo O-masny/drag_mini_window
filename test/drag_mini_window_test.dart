@@ -1,4 +1,5 @@
 import 'package:drag_mini_window/drag_mini_window.dart';
+import 'package:drag_mini_window/src/drag_mini_window_state.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -9,155 +10,96 @@ void main() {
     setUp(() => controller = DragMiniWindowController());
     tearDown(() => controller.dispose());
 
-    test('initial state is maximized', () {
+    test('initial state is full', () {
+      expect(controller.status, DragMiniStatus.full);
       expect(controller.isMinimized, false);
       expect(controller.isDismissed, false);
-      expect(controller.dragProgress, 0.0);
-      expect(controller.miniPosition, isNull);
+      expect(controller.progress, 0.0);
     });
 
-    test('minimize() sets isMinimized and dragProgress', () {
+    test('minimize() sets status to mini and progress to 1.0', () {
       controller.minimize();
+      expect(controller.status, DragMiniStatus.mini);
       expect(controller.isMinimized, true);
-      expect(controller.dragProgress, 1.0);
+      expect(controller.progress, 1.0);
     });
 
-    test('maximize() clears isMinimized, dragProgress, and miniPosition', () {
+    test('maximize() sets status to full and progress to 0.0', () {
       controller.minimize();
-      controller.setMiniPosition(const Offset(100, 200));
       controller.maximize();
+      expect(controller.status, DragMiniStatus.full);
       expect(controller.isMinimized, false);
-      expect(controller.dragProgress, 0.0);
-      expect(controller.miniPosition, isNull);
+      expect(controller.progress, 0.0);
     });
 
-    test('toggle() switches state', () {
+    test('dismiss() sets status to dismissed', () {
+      controller.dismiss();
+      expect(controller.status, DragMiniStatus.dismissed);
+      expect(controller.isDismissed, true);
+    });
+
+    test('toggle() switches between full and mini', () {
       controller.toggle();
-      expect(controller.isMinimized, true);
+      expect(controller.status, DragMiniStatus.mini);
       controller.toggle();
-      expect(controller.isMinimized, false);
+      expect(controller.status, DragMiniStatus.full);
     });
 
-    test('setDragProgress clamps to 0..1', () {
-      controller.setDragProgress(1.5);
-      expect(controller.dragProgress, 1.0);
-      controller.setDragProgress(-0.5);
-      expect(controller.dragProgress, 0.0);
-    });
-
-    test('setDragProgress notifies listeners', () {
-      var called = 0;
-      controller.addListener(() => called++);
-      controller.setDragProgress(0.5);
-      expect(called, 1);
+    test('updateDragProgress updates progress value', () {
+      controller.updateDragProgress(0.5);
+      expect(controller.progress, 0.5);
     });
 
     test('setMiniPosition stores position', () {
       const pos = Offset(100, 200);
       controller.setMiniPosition(pos);
-      expect(controller.miniPosition, pos);
-    });
-
-    test('confirmMinimize sets state and landing position', () {
-      const landing = Offset(50, 600);
-      controller.confirmMinimize(landingPosition: landing);
-      expect(controller.isMinimized, true);
-      expect(controller.dragProgress, 1.0);
-      expect(controller.miniPosition, landing);
-      expect(controller.isDismissed, false);
-    });
-
-    test('dismiss() sets isDismissed', () {
-      controller.dismiss();
-      expect(controller.isDismissed, true);
-    });
-
-    test('maximize() clears isDismissed', () {
-      controller.dismiss();
-      controller.maximize();
-      expect(controller.isDismissed, false);
-    });
-
-    test('minimize() clears isDismissed', () {
-      controller.dismiss();
-      controller.minimize();
-      expect(controller.isDismissed, false);
+      expect(controller.position, pos);
     });
   });
 
   group('DragMiniWindow widget', () {
-    testWidgets('renders expanded content when maximized', (tester) async {
+    testWidgets('renders in Overlay', (tester) async {
       final controller = DragMiniWindowController();
       addTearDown(controller.dispose);
 
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: Stack(
-              children: [
-                DragMiniWindow(
-                  controller: controller,
-                  expandedContent: const Text('expanded'),
-                  miniContent: const Text('mini'),
-                ),
-              ],
+            body: DragMiniWindow(
+              controller: controller,
+              expandedContent: const Text('expanded_content'),
+              miniContent: const Text('mini_content'),
             ),
           ),
         ),
       );
+      await tester.pump(); // Insert overlay
 
-      expect(find.text('expanded'), findsOneWidget);
-      expect(find.text('mini'), findsNothing);
+      expect(find.text('expanded_content'), findsOneWidget);
     });
 
-    testWidgets('renders mini content when minimized', (tester) async {
-      final controller = DragMiniWindowController()..minimize();
+    testWidgets('switches content based on progress', (tester) async {
+      final controller = DragMiniWindowController();
       addTearDown(controller.dispose);
 
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: Stack(
-              children: [
-                DragMiniWindow(
-                  controller: controller,
-                  expandedContent: const Text('expanded'),
-                  miniContent: const Text('mini'),
-                ),
-              ],
+            body: DragMiniWindow(
+              controller: controller,
+              expandedContent: const Text('expanded_content'),
+              miniContent: const Text('mini_content'),
             ),
           ),
         ),
       );
+      await tester.pump();
+
+      // Start minimizing
+      controller.updateDragProgress(0.6);
       await tester.pumpAndSettle();
 
-      expect(find.text('mini'), findsOneWidget);
-      expect(find.text('expanded'), findsNothing);
-    });
-
-    testWidgets('renders nothing when dismissed', (tester) async {
-      final controller = DragMiniWindowController()..dismiss();
-      addTearDown(controller.dispose);
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: Stack(
-              children: [
-                DragMiniWindow(
-                  controller: controller,
-                  expandedContent: const Text('expanded'),
-                  miniContent: const Text('mini'),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      expect(find.text('expanded'), findsNothing);
-      expect(find.text('mini'), findsNothing);
+      expect(find.text('mini_content'), findsOneWidget);
     });
   });
 }

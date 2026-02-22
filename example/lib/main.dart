@@ -106,8 +106,6 @@ class _DemoPageState extends State<DemoPage> {
               'https://picsum.photos/seed/flutter/320/180',
               fit: BoxFit.cover,
             ),
-            onMinimized: () => debugPrint('Minimized'),
-            onTucked: () => debugPrint('Tucked away!'),
             closeButton: const Icon(Icons.keyboard_arrow_down, size: 30),
           ),
         ],

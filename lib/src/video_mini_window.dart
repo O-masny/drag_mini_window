@@ -4,6 +4,7 @@ import 'package:video_player/video_player.dart';
 
 import 'drag_mini_window.dart';
 import 'drag_mini_window_controller.dart';
+import 'drag_mini_window_state.dart';
 
 /// A high-level, "Plug & Play" video tutorial window that supports
 /// YouTube-style dragging, scaling, and professional aesthetics.
@@ -50,7 +51,10 @@ class _VideoMiniWindowState extends State<VideoMiniWindow> {
   @override
   void initState() {
     super.initState();
-    _dmw = DragMiniWindowController(initialMinimized: widget.initialMinimized);
+    _dmw = DragMiniWindowController(
+      initialStatus:
+          widget.initialMinimized ? DragMiniStatus.mini : DragMiniStatus.full,
+    );
     _initializePlayer();
   }
 
@@ -97,7 +101,6 @@ class _VideoMiniWindowState extends State<VideoMiniWindow> {
   Widget build(BuildContext context) {
     return DragMiniWindow(
       controller: _dmw,
-      onDismissed: widget.onClose,
       expandedContent: _VideoExpandedContent(
         title: widget.title,
         subtitle: widget.subtitle,
@@ -105,10 +108,13 @@ class _VideoMiniWindowState extends State<VideoMiniWindow> {
         chewieController: _chewieController,
         onClose: widget.onClose,
       ),
-      closeButton: IconButton(
-        icon: const Icon(Icons.close_rounded, color: Colors.white, size: 28),
-        onPressed: widget.onClose,
-      ),
+      closeButton: widget.onClose != null
+          ? IconButton(
+              icon: const Icon(Icons.close_rounded,
+                  color: Colors.white, size: 28),
+              onPressed: widget.onClose,
+            )
+          : null,
       miniContent: _VideoMiniContent(
         title: widget.title,
         videoController: _videoController,
@@ -215,12 +221,10 @@ class _VideoMiniContent extends StatelessWidget {
   const _VideoMiniContent({
     required this.title,
     required this.videoController,
-    this.onClose,
   });
 
   final String title;
   final VideoPlayerController? videoController;
-  final VoidCallback? onClose;
 
   @override
   Widget build(BuildContext context) {
