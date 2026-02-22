@@ -98,9 +98,10 @@ class _DragMiniWindowState extends State<DragMiniWindow>
     with SingleTickerProviderStateMixin {
   late final AnimationController _anim;
 
-  // Gesture status
   bool _isDraggingExpanded = false;
   Offset _fingerPos = Offset.zero;
+  Offset _dragStartFingerPos = Offset.zero;
+  double _dragStartProgress = 0.0;
   Offset? _miniLanding;
   Size _lastScreen = Size.zero;
 
@@ -112,7 +113,6 @@ class _DragMiniWindowState extends State<DragMiniWindow>
   // Docking status
   bool _isDockingCandidateTop = false;
   bool _isDockingCandidateBottom = false;
-  bool _isDockedAtTop = false;
 
   // Hover status
   bool _isHovered = false;
@@ -164,16 +164,10 @@ class _DragMiniWindowState extends State<DragMiniWindow>
 
   Size _getExpandedSize(Size screen) {
     if (widget.expandedSize != null) return widget.expandedSize!;
-    final isLandscape = screen.width > screen.height;
-    return isLandscape
-        ? Size(screen.width * 0.96, screen.height * 0.92)
-        : Size(screen.width * 0.92, screen.height * 0.80);
+    return screen;
   }
 
-  Offset _getExpandedOrigin(Size screen, Size expSize) => Offset(
-        (screen.width - expSize.width) / 2,
-        (screen.height - expSize.height) / 2,
-      );
+  Offset _getExpandedOrigin(Size screen, Size expSize) => Offset.zero;
 
   Offset _getDefaultMiniOrigin(
     Size screen,
@@ -235,18 +229,26 @@ class _DragMiniWindowState extends State<DragMiniWindow>
 
   // --- Gesture Handlers ---
 
+  void _onExpandedPanStart(DragStartDetails d) {
+    _dragStartFingerPos = d.globalPosition;
+    _dragStartProgress = widget.controller.dragProgress;
+    _isDraggingExpanded = true;
+    _miniPanDistance = 0.0;
+    _anim.stop();
+  }
+
   void _onExpandedPanUpdate(DragUpdateDetails d) {
     _fingerPos = d.globalPosition;
     final screen = MediaQuery.sizeOf(context);
     final safe = MediaQuery.paddingOf(context);
     final miniSize = _currentMiniSize;
 
-    // YouTube style: Progress based on vertical distance
-    final expSize = _getExpandedSize(screen);
-    final startY = (screen.height - expSize.height) / 2;
-    final maxSwipe = screen.height - startY - 100;
-    final currentSwipe = (_fingerPos.dy - startY).clamp(0.0, maxSwipe);
-    final progress = (currentSwipe / maxSwipe).clamp(0.0, 1.0);
+    // Relative swipe progress:
+    // Moving from bottom to top or top to bottom based on initial start.
+    final deltaY = _fingerPos.dy - _dragStartFingerPos.dy;
+    final maxSwipe = screen.height * 0.5; // Swipe 50% screen = full minimize
+    final progressDelta = (deltaY / maxSwipe).clamp(-1.0, 1.0);
+    final progress = (_dragStartProgress + progressDelta).clamp(0.0, 1.0);
 
     final landing = Offset(
       _fingerPos.dx - miniSize.width / 2,
@@ -255,7 +257,6 @@ class _DragMiniWindowState extends State<DragMiniWindow>
 
     widget.controller.setDragProgress(progress);
     _anim.value = progress;
-    _isDraggingExpanded = true;
     _miniLanding = _clampToSafe(landing, screen, safe, miniSize);
   }
 
@@ -264,51 +265,85 @@ class _DragMiniWindowState extends State<DragMiniWindow>
     final progress = widget.controller.dragProgress;
     final velocity = d.velocity.pixelsPerSecond.dy;
 
-    if (progress > widget.snapThreshold ||
-        velocity > widget.snapVelocityThreshold) {
+    // Flick down = minimize
+    if (velocity > widget.snapVelocityThreshold) {
       if (widget.enableHaptics && !kIsWeb) HapticFeedback.lightImpact();
-      _springTo(
-        1.0,
-        onComplete: () {
-          final screen = MediaQuery.sizeOf(context);
-          final safe = MediaQuery.paddingOf(context);
-          final miniSize = _currentMiniSize;
-          var landing = _miniLanding ??
-              _getDefaultMiniOrigin(
-                screen,
-                safe,
-                miniSize,
-                widget.style.defaultMiniAlignment,
-              );
-
-          if (widget.enableEdgeSnap) {
-            final center = landing.dx + miniSize.width / 2;
-            final m = widget.style.edgeSnapMargin;
-            final dx = center < screen.width / 2
-                ? m + safe.left
-                : screen.width - miniSize.width - m - safe.right;
-            landing = Offset(
-              dx,
-              landing.dy.clamp(
-                m + safe.top,
-                screen.height - miniSize.height - m - safe.bottom,
-              ),
+      _springTo(1.0, onComplete: () {
+        final screen = MediaQuery.sizeOf(context);
+        final safe = MediaQuery.paddingOf(context);
+        final miniSize = _currentMiniSize;
+        var landing = _miniLanding ??
+            _getDefaultMiniOrigin(
+              screen,
+              safe,
+              miniSize,
+              widget.style.defaultMiniAlignment,
             );
-          }
-          widget.controller.confirmMinimize(landingPosition: landing);
-          _miniLanding = null;
-          widget.onMinimized?.call();
-        },
-      );
-    } else {
-      _springTo(
-        0.0,
-        onComplete: () {
-          widget.controller.maximize();
-          widget.onMaximized?.call();
-        },
-      );
+
+        if (widget.enableEdgeSnap) {
+          final center = landing.dx + miniSize.width / 2;
+          final m = widget.style.edgeSnapMargin;
+          final dx = center < screen.width / 2
+              ? m + safe.left
+              : screen.width - miniSize.width - m - safe.right;
+          landing = Offset(
+            dx,
+            landing.dy.clamp(
+              m + safe.top,
+              screen.height - miniSize.height - m - safe.bottom,
+            ),
+          );
+        }
+        widget.controller.confirmMinimize(landingPosition: landing);
+        _miniLanding = null;
+        widget.onMinimized?.call();
+      });
+      return;
     }
+
+    if (progress > widget.snapThreshold) {
+      if (widget.enableHaptics && !kIsWeb) HapticFeedback.lightImpact();
+      _springTo(1.0, onComplete: () {
+        final screen = MediaQuery.sizeOf(context);
+        final safe = MediaQuery.paddingOf(context);
+        final miniSize = _currentMiniSize;
+        var landing = _miniLanding ??
+            _getDefaultMiniOrigin(
+              screen,
+              safe,
+              miniSize,
+              widget.style.defaultMiniAlignment,
+            );
+
+        if (widget.enableEdgeSnap) {
+          final center = landing.dx + miniSize.width / 2;
+          final m = widget.style.edgeSnapMargin;
+          final dx = center < screen.width / 2
+              ? m + safe.left
+              : screen.width - miniSize.width - m - safe.right;
+          landing = Offset(
+            dx,
+            landing.dy.clamp(
+              m + safe.top,
+              screen.height - miniSize.height - m - safe.bottom,
+            ),
+          );
+        }
+        widget.controller.confirmMinimize(landingPosition: landing);
+        _miniLanding = null;
+        widget.onMinimized?.call();
+      });
+    } else {
+      _springTo(0.0, onComplete: () {
+        widget.controller.maximize();
+        widget.onMaximized?.call();
+      });
+    }
+  }
+
+  void _onMiniPanStart(DragStartDetails d) {
+    _miniPanStart = d.globalPosition;
+    _miniPanDistance = 0.0;
   }
 
   void _onMiniPanUpdate(DragUpdateDetails d) {
@@ -395,11 +430,11 @@ class _DragMiniWindowState extends State<DragMiniWindow>
     final pos = widget.controller.miniPosition ?? Offset.zero;
 
     if (_isDockingCandidateTop || _isDockingCandidateBottom) {
+      final wasAtTop = _isDockingCandidateTop;
       setState(() {
-        _isDockedAtTop = _isDockingCandidateTop;
         _isDockingCandidateTop = _isDockingCandidateBottom = false;
       });
-      widget.controller.setDocked(true);
+      widget.controller.setDocked(true, atTop: wasAtTop);
       return;
     }
 
@@ -461,22 +496,22 @@ class _DragMiniWindowState extends State<DragMiniWindow>
           },
           child: Focus(
             autofocus: true,
-            child: Stack(
-              children: [
-                AnimatedBuilder(
-                  animation: _anim,
-                  builder: (context, _) => _buildBackdrop(_anim.value),
-                ),
-                if (_isDockingCandidateTop)
-                  _buildPlaceholder(safe, screen, true),
-                if (_isDockingCandidateBottom)
-                  _buildPlaceholder(safe, screen, false),
-                AnimatedBuilder(
-                  animation: _anim,
-                  builder: (context, _) =>
-                      _buildWindowFrame(screen, safe, _anim.value),
-                ),
-              ],
+            child: AnimatedBuilder(
+              animation: _anim,
+              builder: (context, _) {
+                final progress = _anim.value;
+                return Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    _buildBackdrop(progress),
+                    if (_isDockingCandidateTop)
+                      _buildPlaceholder(safe, screen, true),
+                    if (_isDockingCandidateBottom)
+                      _buildPlaceholder(safe, screen, false),
+                    _buildWindowFrame(screen, safe, progress),
+                  ],
+                );
+              },
             ),
           ),
         );
@@ -525,7 +560,8 @@ class _DragMiniWindowState extends State<DragMiniWindow>
   }
 
   Widget _buildWindowFrame(Size screen, EdgeInsets safe, double progress) {
-    final isMini = progress > 0.95 && !_isDraggingExpanded;
+    // Determine if we are truly in "Mini" mode (docked or fully minimized at rest)
+    final isMini = progress > 0.99 && !_isDraggingExpanded;
     final isDocked = widget.controller.isDocked;
     final miniSize = _currentMiniSize;
     final expSize = _getExpandedSize(screen);
@@ -544,10 +580,10 @@ class _DragMiniWindowState extends State<DragMiniWindow>
     Size targetSize = miniSize;
     double targetRadius = widget.style.miniBorderRadius;
 
-    if (isDocked && isMini) {
+    if (isDocked) {
       targetOrigin = Offset(
         0,
-        _isDockedAtTop
+        widget.controller.isDockedAtTop
             ? safe.top
             : screen.height - safe.bottom - widget.style.dockedHeight,
       );
@@ -555,62 +591,90 @@ class _DragMiniWindowState extends State<DragMiniWindow>
       targetRadius = 0.0;
     }
 
-    // --- High Performance Optimization ---
-    // Instead of animating L, T, W, H in Positioned (which triggers relayout),
-    // we use Positioned at full-screen/anchor and use Transform.translate/scale.
-    // This allows the GPU to handle the animation in the painting phase.
+    // --- High-Performance Transformation Logic ---
+    // We use a full-screen Positioned frame as the coordinate system
+    // and Transform to precisely scale and move the content.
+    final scaleX = lerpDouble(1.0, targetSize.width / expSize.width, progress)!;
+    final scaleY =
+        lerpDouble(1.0, targetSize.height / expSize.height, progress)!;
 
-    final L = lerpDouble(expOrigin.dx, targetOrigin.dx, progress)!;
-    final T = lerpDouble(expOrigin.dy, targetOrigin.dy, progress)!;
-    final W = lerpDouble(expSize.width, targetSize.width, progress)!;
-    final H = lerpDouble(expSize.height, targetSize.height, progress)!;
-    final R = lerpDouble(widget.style.borderRadius, targetRadius, progress)!;
+    // Center-to-Center math for Alignment.center transform
+    final expCenter = Offset(
+      expOrigin.dx + expSize.width / 2,
+      expOrigin.dy + expSize.height / 2,
+    );
+    final tarCenter = Offset(
+      targetOrigin.dx + targetSize.width / 2,
+      targetOrigin.dy + targetSize.height / 2,
+    );
+
+    final translateX = lerpDouble(0.0, tarCenter.dx - expCenter.dx, progress)!;
+    final translateY = lerpDouble(0.0, tarCenter.dy - expCenter.dy, progress)!;
+    final R = lerpDouble(0.0, targetRadius, progress)!;
+
+    // When fully minimized and NOT dragging, we shrink Positioned to miniSize
+    // to allow touches to pass through to the app underneath.
+    final bool useAbsolutePosition = isMini && !isDocked;
 
     return Positioned(
-      left: L,
-      top: T,
-      width: W,
-      height: H,
-      child: MouseRegion(
-        cursor: isMini ? SystemMouseCursors.click : MouseCursor.defer,
-        onEnter: (_) => setState(() => _isHovered = true),
-        onExit: (_) => setState(() => _isHovered = false),
-        child: GestureDetector(
-          behavior:
-              HitTestBehavior.opaque, // Crucial for gesture theft prevention
-          onPanStart: (d) {
-            _miniPanStart = d.globalPosition;
-            _miniPanDistance = 0;
-            if (!isMini) _anim.stop();
-          },
-          onPanUpdate: isMini ? _onMiniPanUpdate : _onExpandedPanUpdate,
-          onPanEnd: (d) {
-            _isDraggingExpanded = false;
-            if (isMini) {
-              _onMiniPanEnd(d);
-            } else {
-              _onExpandedPanEnd(d);
-            }
-          },
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.black,
-              borderRadius: BorderRadius.circular(R),
-              boxShadow: isMini && !isDocked ? widget.style.shadows : [],
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: Stack(
-              children: [
-                // IgnorePointer when dragging to prevent nested controls
-                // (like video play button) from breaking the gesture chain.
-                IgnorePointer(
-                  ignoring: _isDraggingExpanded ||
-                      (progress > 0.05 && progress < 0.95),
-                  child: _buildContent(isMini, isDocked, progress),
+      left: useAbsolutePosition ? targetOrigin.dx : expOrigin.dx,
+      top: useAbsolutePosition ? targetOrigin.dy : expOrigin.dy,
+      width: useAbsolutePosition ? targetSize.width : expSize.width,
+      height: useAbsolutePosition ? targetSize.height : expSize.height,
+      child: Transform(
+        transform: Matrix4.identity()
+          ..translate(useAbsolutePosition ? 0.0 : translateX,
+              useAbsolutePosition ? 0.0 : translateY)
+          ..scale(useAbsolutePosition ? 1.0 : scaleX,
+              useAbsolutePosition ? 1.0 : scaleY),
+        alignment: Alignment.center,
+        child: MouseRegion(
+          cursor: isMini ? SystemMouseCursors.click : MouseCursor.defer,
+          onEnter: (_) => setState(() => _isHovered = true),
+          onExit: (_) => setState(() => _isHovered = false),
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onPanStart: (d) {
+              if (progress > 0.5) {
+                _onMiniPanStart(d);
+              } else {
+                _onExpandedPanStart(d);
+              }
+            },
+            onPanUpdate:
+                progress > 0.5 ? _onMiniPanUpdate : _onExpandedPanUpdate,
+            onPanEnd: (d) {
+              _isDraggingExpanded = false;
+              if (progress > 0.5) {
+                _onMiniPanEnd(d);
+              } else {
+                _onExpandedPanEnd(d);
+              }
+            },
+            child: Material(
+              type: MaterialType.transparency,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: widget.style.windowBackgroundColor,
+                  borderRadius: BorderRadius.circular(
+                      R / (useAbsolutePosition ? 1.0 : scaleX)),
+                  boxShadow: isMini && !isDocked ? widget.style.shadows : [],
                 ),
-                _buildProgressBar(isMini, isDocked),
-                _buildControls(isMini, isDocked),
-              ],
+                clipBehavior: Clip.antiAlias,
+                child: Stack(
+                  children: [
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        ignoring: _isDraggingExpanded ||
+                            (progress > 0.01 && progress < 0.99),
+                        child: _buildContent(isMini, isDocked, progress),
+                      ),
+                    ),
+                    _buildProgressBar(isMini, isDocked),
+                    _buildControls(isMini, isDocked),
+                  ],
+                ),
+              ),
             ),
           ),
         ),
@@ -619,23 +683,21 @@ class _DragMiniWindowState extends State<DragMiniWindow>
   }
 
   Widget _buildContent(bool isMini, bool isDocked, double progress) {
-    return Positioned.fill(
-      child: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 200),
-        switchInCurve: Curves.easeIn,
-        switchOutCurve: Curves.easeOut,
-        child: isDocked && isMini
-            ? _buildDockedBar()
-            : (progress > 0.8
-                ? KeyedSubtree(
-                    key: const ValueKey('mini'),
-                    child: widget.miniContent,
-                  )
-                : KeyedSubtree(
-                    key: const ValueKey('exp'),
-                    child: widget.expandedContent,
-                  )),
-      ),
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 200),
+      switchInCurve: Curves.easeIn,
+      switchOutCurve: Curves.easeOut,
+      child: isDocked && isMini
+          ? _buildDockedBar()
+          : (progress > 0.8
+              ? KeyedSubtree(
+                  key: const ValueKey('mini'),
+                  child: widget.miniContent,
+                )
+              : KeyedSubtree(
+                  key: const ValueKey('exp'),
+                  child: widget.expandedContent,
+                )),
     );
   }
 

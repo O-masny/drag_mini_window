@@ -11,6 +11,9 @@ import 'package:flutter/foundation.dart';
 /// controller.setPlaybackProgress(0.5); // YouTube-style progress bar
 /// ```
 class DragMiniWindowController extends ChangeNotifier {
+  /// Creates a [DragMiniWindowController].
+  ///
+  /// Set [initialMinimized] to true to start the window in minimized state.
   DragMiniWindowController({bool initialMinimized = false}) {
     _isMinimized = initialMinimized;
     if (_isMinimized) _dragProgress = 1.0;
@@ -19,6 +22,7 @@ class DragMiniWindowController extends ChangeNotifier {
   bool _isMinimized = false;
   bool _isDismissed = false;
   bool _isDocked = false;
+  bool _isDockedAtTop = false;
   bool _isTucked = false;
   double _dragProgress = 0.0;
   double _playbackProgress = 0.0;
@@ -32,8 +36,11 @@ class DragMiniWindowController extends ChangeNotifier {
   /// Whether the window is currently dismissed (closed).
   bool get isDismissed => _isDismissed;
 
-  /// Whether the mini panel is currently docked at the bottom edge.
+  /// Whether the mini panel is currently docked at the bottom or top edge.
   bool get isDocked => _isDocked;
+
+  /// Whether the window is docked at the top.
+  bool get isDockedAtTop => _isDockedAtTop;
 
   /// Whether the mini panel is tucked behind the screen edge.
   bool get isTucked => _isTucked;
@@ -83,9 +90,10 @@ class DragMiniWindowController extends ChangeNotifier {
 
   /// Sets the docked state. For internal use by [DragMiniWindow].
   @internal
-  void setDocked(bool docked) {
-    if (_isDocked != docked) {
+  void setDocked(bool docked, {bool atTop = false}) {
+    if (_isDocked != docked || _isDockedAtTop != atTop) {
       _isDocked = docked;
+      _isDockedAtTop = atTop;
       notifyListeners();
     }
   }
@@ -126,18 +134,20 @@ class DragMiniWindowController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Programmatically dock the mini panel at the bottom edge.
-  void dock() {
+  /// Programmatically dock the mini panel at the bottom or top edge.
+  void dock({bool atTop = false}) {
     _isDocked = true;
+    _isDockedAtTop = atTop;
     _isTucked = false;
     _isMinimized = true;
     _dragProgress = 1.0;
     notifyListeners();
   }
 
-  /// Programmatically undock back to floating mini.
+  /// Programmatically undock back to floating mini player.
   void undock() {
     _isDocked = false;
+    _isDockedAtTop = false;
     notifyListeners();
   }
 

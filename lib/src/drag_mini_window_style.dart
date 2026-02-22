@@ -17,6 +17,7 @@ class DragMiniWindowStyle {
     this.edgeSnapMargin = 16.0,
     this.springStiffness = 300.0,
     this.springDamping = 30.0,
+    this.windowBackgroundColor = Colors.black,
     this.shadows = const [
       BoxShadow(color: Colors.black54, blurRadius: 12, spreadRadius: 2),
     ],
@@ -61,6 +62,9 @@ class DragMiniWindowStyle {
   /// Damping of the spring animation.
   final double springDamping;
 
+  /// Background color of the window frame itself.
+  final Color windowBackgroundColor;
+
   /// Shadows applied to the mini window.
   final List<BoxShadow> shadows;
 
@@ -79,6 +83,7 @@ class DragMiniWindowStyle {
     double? edgeSnapMargin,
     double? springStiffness,
     double? springDamping,
+    Color? windowBackgroundColor,
     List<BoxShadow>? shadows,
   }) {
     return DragMiniWindowStyle(
@@ -96,6 +101,8 @@ class DragMiniWindowStyle {
       edgeSnapMargin: edgeSnapMargin ?? this.edgeSnapMargin,
       springStiffness: springStiffness ?? this.springStiffness,
       springDamping: springDamping ?? this.springDamping,
+      windowBackgroundColor:
+          windowBackgroundColor ?? this.windowBackgroundColor,
       shadows: shadows ?? this.shadows,
     );
   }
