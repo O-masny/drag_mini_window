@@ -39,6 +39,8 @@ class DragMiniWindow extends StatefulWidget {
     this.miniBorderWidth = 2.0,
     this.onMinimized,
     this.onMaximized,
+    this.onDismissed,
+    this.closeButton,
   });
 
   /// State controller. Provide a [DragMiniWindowController] and call
@@ -98,6 +100,13 @@ class DragMiniWindow extends StatefulWidget {
   /// Called once when the panel is fully maximized (animation complete).
   final VoidCallback? onMaximized;
 
+  /// Called once when the panel is fully dismissed.
+  final VoidCallback? onDismissed;
+
+  /// Optional close button widget. If provided, it will be shown in the
+  /// expanded view.
+  final Widget? closeButton;
+
   @override
   State<DragMiniWindow> createState() => _DragMiniWindowState();
 }
@@ -120,6 +129,10 @@ class _DragMiniWindowState extends State<DragMiniWindow>
   /// Target mini-panel position derived live during the drag.
   /// On release this becomes the confirmed position.
   Offset? _miniLanding;
+
+  /// Last known screen size — used to detect orientation changes and
+  /// re-clamp the mini panel so it stays on screen after rotation.
+  Size _lastScreen = Size.zero;
 
   // ── Mini panel repositioning ──────────────────────────────────────────
 
@@ -157,6 +170,27 @@ class _DragMiniWindowState extends State<DragMiniWindow>
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final screen = MediaQuery.sizeOf(context);
+    if (_lastScreen != Size.zero && _lastScreen != screen) {
+      // Orientation changed — re-clamp mini panel and stored landing position
+      // so the widget never ends up off-screen after rotation.
+      final safe = MediaQuery.paddingOf(context);
+      final mini = widget.miniSize;
+      if (widget.controller.miniPosition != null) {
+        widget.controller.setMiniPosition(
+          _clamp(widget.controller.miniPosition!, screen, safe, mini),
+        );
+      }
+      if (_miniLanding != null) {
+        _miniLanding = _clamp(_miniLanding!, screen, safe, mini);
+      }
+    }
+    _lastScreen = screen;
+  }
+
+  @override
   void didUpdateWidget(DragMiniWindow oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.animationDuration != widget.animationDuration) {
@@ -178,8 +212,17 @@ class _DragMiniWindowState extends State<DragMiniWindow>
 
   // ── Geometry helpers ─────────────────────────────────────────────────
 
-  Size _expandedSize(Size screen) =>
-      widget.expandedSize ?? Size(screen.width * 0.88, screen.height * 0.75);
+  /// Returns the expanded panel size, automatically adapting to orientation.
+  ///
+  /// In landscape (`width > height`) the panel fills more of the short axis
+  /// (92% height, 96% width) so it feels natural without cropping.
+  Size _expandedSize(Size screen) {
+    if (widget.expandedSize != null) return widget.expandedSize!;
+    final isLandscape = screen.width > screen.height;
+    return isLandscape
+        ? Size(screen.width * 0.96, screen.height * 0.92)
+        : Size(screen.width * 0.88, screen.height * 0.75);
+  }
 
   Offset _expandedOrigin(Size screen, Size expSize) => Offset(
         (screen.width - expSize.width) / 2,
@@ -193,34 +236,46 @@ class _DragMiniWindowState extends State<DragMiniWindow>
     Alignment alignment,
   ) {
     final available = Size(
-      screen.width - miniSize.width - 16,
+      screen.width - miniSize.width - 16 - safe.right,
       screen.height - miniSize.height - 16 - safe.bottom,
     );
     final cx = (alignment.x + 1) / 2; // -1..1 → 0..1
     final cy = (alignment.y + 1) / 2;
-    return Offset(8 + cx * available.width, 8 + cy * available.height);
+    return Offset(
+      8 + safe.left + cx * available.width,
+      8 + safe.top + cy * available.height,
+    );
   }
 
-  Offset _clamp(Offset pos, Size screen, Size size) => Offset(
-        pos.dx.clamp(8.0, screen.width - size.width - 8),
-        pos.dy.clamp(8.0, screen.height - size.height - 8),
+  /// Clamps [pos] so the panel (of [size]) stays fully on-screen,
+  /// respecting safe-area insets on all sides.
+  Offset _clamp(Offset pos, Size screen, EdgeInsets safe, Size size) => Offset(
+        pos.dx
+            .clamp(8.0 + safe.left, screen.width - size.width - 8 - safe.right),
+        pos.dy.clamp(
+            8.0 + safe.top, screen.height - size.height - 8 - safe.bottom),
       );
 
-  /// Normalized distance of [finger] from screen center (0 = center, 1 = corner).
+  /// Normalized distance of [finger] from the expanded panel center.
+  /// Using the half-diagonal of the expanded panel as max-distance gives a
+  /// stable 0→1 range that is independent of aspect-ratio / orientation.
   double _progressFromFinger(Offset finger, Size screen) {
+    final expSize = _expandedSize(screen);
     final center = Offset(screen.width / 2, screen.height / 2);
     final maxDist = math.sqrt(
-      math.pow(screen.width / 2, 2) + math.pow(screen.height / 2, 2),
+      math.pow(expSize.width / 2, 2) + math.pow(expSize.height / 2, 2),
     );
     final dist = (finger - center).distance;
     return (dist / maxDist).clamp(0.0, 1.0);
   }
 
   /// Maps the current finger position to a clamped mini-panel origin.
-  Offset _miniOriginFromFinger(Offset finger, Size screen, Size miniSize) {
+  Offset _miniOriginFromFinger(
+      Offset finger, Size screen, EdgeInsets safe, Size miniSize) {
     return _clamp(
       Offset(finger.dx - miniSize.width / 2, finger.dy - miniSize.height / 2),
       screen,
+      safe,
       miniSize,
     );
   }
@@ -235,9 +290,11 @@ class _DragMiniWindowState extends State<DragMiniWindow>
 
   void _onExpandedPanUpdate(DragUpdateDetails d) {
     _fingerPos = d.globalPosition;
+    final safe = MediaQuery.paddingOf(context);
     final screen = MediaQuery.sizeOf(context);
     final progress = _progressFromFinger(_fingerPos, screen);
-    final landing = _miniOriginFromFinger(_fingerPos, screen, widget.miniSize);
+    final landing =
+        _miniOriginFromFinger(_fingerPos, screen, safe, widget.miniSize);
 
     widget.controller.setDragProgress(progress);
     _anim.value = progress;
@@ -302,12 +359,27 @@ class _DragMiniWindowState extends State<DragMiniWindow>
         );
 
     widget.controller.setMiniPosition(
-      _clamp(currentPos + d.delta, screen, widget.miniSize),
+      _clamp(currentPos + d.delta, screen, safe, widget.miniSize),
     );
   }
 
-  void _onMiniPanEnd(DragEndDetails _) {
-    if (_miniPanDistance < _tapDeadZone) {
+  void _onMiniPanEnd(DragEndDetails d) {
+    final speed = d.velocity.pixelsPerSecond.dx.abs();
+    final dist = (d.velocity.pixelsPerSecond.dx * 0.2)
+        .abs(); // Simple heuristic for flick distance
+
+    if (speed > 1000 || dist > 100) {
+      // Swipe to dismiss
+      final screen = MediaQuery.sizeOf(context);
+      final currentPos = widget.controller.miniPosition ?? Offset.zero;
+      final targetX = d.velocity.pixelsPerSecond.dx > 0
+          ? screen.width + 50.0
+          : -widget.miniSize.width - 50.0;
+
+      widget.controller.setMiniPosition(Offset(targetX, currentPos.dy));
+      widget.controller.confirmDismiss();
+      widget.onDismissed?.call();
+    } else if (_miniPanDistance < _tapDeadZone) {
       // Treat as tap → maximize
       _snapTo(
         0.0,
@@ -334,6 +406,8 @@ class _DragMiniWindowState extends State<DragMiniWindow>
     return ListenableBuilder(
       listenable: widget.controller,
       builder: (context, _) {
+        if (widget.controller.isDismissed) return const SizedBox.shrink();
+
         final progress = widget.controller.dragProgress;
         final screen = MediaQuery.sizeOf(context);
         final safe = MediaQuery.paddingOf(context);
@@ -445,9 +519,30 @@ class _DragMiniWindowState extends State<DragMiniWindow>
                       ),
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(currentRadius - 1),
-                        child: isMini
-                            ? widget.miniContent
-                            : widget.expandedContent,
+                        child: Stack(
+                          children: [
+                            isMini
+                                ? widget.miniContent
+                                : widget.expandedContent,
+                            if (!isMini && widget.closeButton != null)
+                              Positioned(
+                                top: 8,
+                                right: 8,
+                                child: GestureDetector(
+                                  onTap: () {
+                                    _snapTo(
+                                      1.0,
+                                      onComplete: () {
+                                        widget.controller.minimize();
+                                        widget.onMinimized?.call();
+                                      },
+                                    );
+                                  },
+                                  child: widget.closeButton!,
+                                ),
+                              ),
+                          ],
+                        ),
                       ),
                     ),
                   ),

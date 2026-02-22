@@ -13,6 +13,7 @@ import 'package:flutter/foundation.dart';
 /// ```
 class DragMiniWindowController extends ChangeNotifier {
   bool _isMinimized = false;
+  bool _isDismissed = false;
 
   /// Current drag/animation progress.
   /// 0.0 = fully expanded, 1.0 = fully minimized.
@@ -26,6 +27,9 @@ class DragMiniWindowController extends ChangeNotifier {
 
   /// Whether the window is currently minimized.
   bool get isMinimized => _isMinimized;
+
+  /// Whether the window is currently dismissed (closed).
+  bool get isDismissed => _isDismissed;
 
   /// Normalized progress between expanded (0.0) and minimized (1.0).
   /// Useful for building custom interpolated effects.
@@ -57,6 +61,14 @@ class DragMiniWindowController extends ChangeNotifier {
     _isMinimized = true;
     _dragProgress = 1.0;
     _miniPosition = landingPosition;
+    _isDismissed = false;
+    notifyListeners();
+  }
+
+  /// Called by the widget when the panel is dismissed.
+  @internal
+  void confirmDismiss() {
+    _isDismissed = true;
     notifyListeners();
   }
 
@@ -64,6 +76,7 @@ class DragMiniWindowController extends ChangeNotifier {
 
   /// Programmatically minimize the window.
   void minimize() {
+    _isDismissed = false;
     _isMinimized = true;
     _dragProgress = 1.0;
     notifyListeners();
@@ -74,9 +87,16 @@ class DragMiniWindowController extends ChangeNotifier {
   /// Clears the stored [miniPosition] so the next minimize cycle starts from
   /// [DragMiniWindow.defaultMiniAlignment] rather than the previous landing spot.
   void maximize() {
+    _isDismissed = false;
     _isMinimized = false;
     _dragProgress = 0.0;
     _miniPosition = null;
+    notifyListeners();
+  }
+
+  /// Programmatically dismiss (close) the window.
+  void dismiss() {
+    _isDismissed = true;
     notifyListeners();
   }
 
