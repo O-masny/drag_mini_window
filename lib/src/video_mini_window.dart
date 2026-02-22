@@ -46,6 +46,7 @@ class _VideoMiniWindowState extends State<VideoMiniWindow> {
   late DragMiniWindowController _dmw;
   VideoPlayerController? _videoController;
   ChewieController? _chewieController;
+  final GlobalKey _videoKey = GlobalKey();
   bool _isDisposed = false;
 
   @override
@@ -106,6 +107,8 @@ class _VideoMiniWindowState extends State<VideoMiniWindow> {
         subtitle: widget.subtitle,
         dmw: _dmw,
         chewieController: _chewieController,
+        videoController: _videoController,
+        videoFrameKey: _videoKey,
         onClose: widget.onClose,
       ),
       closeButton: widget.onClose != null
@@ -118,8 +121,39 @@ class _VideoMiniWindowState extends State<VideoMiniWindow> {
       miniContent: _VideoMiniContent(
         title: widget.title,
         videoController: _videoController,
+        chewieController: _chewieController,
+        videoFrameKey: _videoKey,
       ),
     );
+  }
+}
+
+class _VideoFrame extends StatelessWidget {
+  const _VideoFrame({
+    super.key,
+    required this.chewieController,
+    required this.videoController,
+    required this.isMini,
+  });
+
+  final ChewieController? chewieController;
+  final VideoPlayerController? videoController;
+  final bool isMini;
+
+  @override
+  Widget build(BuildContext context) {
+    if (isMini) {
+      if (videoController == null || !videoController!.value.isInitialized) {
+        return Container(color: Colors.black);
+      }
+      return VideoPlayer(videoController!);
+    } else {
+      if (chewieController == null) {
+        return const Center(
+            child: CircularProgressIndicator(color: Colors.white24));
+      }
+      return Chewie(controller: chewieController!);
+    }
   }
 }
 
@@ -129,6 +163,8 @@ class _VideoExpandedContent extends StatelessWidget {
     required this.subtitle,
     required this.dmw,
     required this.chewieController,
+    required this.videoController,
+    required this.videoFrameKey,
     this.onClose,
   });
 
@@ -136,6 +172,8 @@ class _VideoExpandedContent extends StatelessWidget {
   final String subtitle;
   final DragMiniWindowController dmw;
   final ChewieController? chewieController;
+  final VideoPlayerController? videoController;
+  final GlobalKey videoFrameKey;
   final VoidCallback? onClose;
 
   @override
@@ -158,13 +196,12 @@ class _VideoExpandedContent extends StatelessWidget {
                     aspectRatio: chewieController
                             ?.videoPlayerController.value.aspectRatio ??
                         16 / 9,
-                    child: chewieController != null
-                        ? Chewie(controller: chewieController!)
-                        : const Center(
-                            child: CircularProgressIndicator(
-                              color: Colors.white24,
-                            ),
-                          ),
+                    child: _VideoFrame(
+                      key: videoFrameKey,
+                      chewieController: chewieController,
+                      videoController: videoController,
+                      isMini: false,
+                    ),
                   ),
 
                   // Metadata & Controls
@@ -221,20 +258,26 @@ class _VideoMiniContent extends StatelessWidget {
   const _VideoMiniContent({
     required this.title,
     required this.videoController,
+    required this.chewieController,
+    required this.videoFrameKey,
   });
 
   final String title;
   final VideoPlayerController? videoController;
+  final ChewieController? chewieController;
+  final GlobalKey videoFrameKey;
 
   @override
   Widget build(BuildContext context) {
     return Stack(
       fit: StackFit.expand,
       children: [
-        if (videoController != null && videoController!.value.isInitialized)
-          VideoPlayer(videoController!)
-        else
-          Container(color: Colors.black),
+        _VideoFrame(
+          key: videoFrameKey,
+          chewieController: chewieController,
+          videoController: videoController,
+          isMini: true,
+        ),
         const DecoratedBox(
           decoration: BoxDecoration(
             gradient: LinearGradient(
