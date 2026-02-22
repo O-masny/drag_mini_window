@@ -2,25 +2,27 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'drag_mini_window_controller.dart';
 import 'drag_mini_window_state.dart';
 
 /// Aggregates gestures and maps them to Controller actions.
 ///
-/// Two modes:
+/// Three modes:
 /// - **From MAX**: Any drag direction shrinks the player. The mini-player
 ///   target follows the finger in 2D so it lands exactly where you release.
 /// - **From MINI**: Free-form 2D repositioning. Tap to maximize.
-///
-/// Hold-to-dock: if the user holds the mini-player steady for 500ms mid-drag,
-/// it transitions to a full-width docked bar.
+///   A fast horizontal flick dismisses the player.
+/// - **Docking**: If the user holds the mini-player stationary for 500ms+
+///   during a drag, the player adaptively expands to a docked bottom bar.
 class DragMiniGestureHandler extends StatefulWidget {
   /// Creates an internal [DragMiniGestureHandler].
   const DragMiniGestureHandler({
     super.key,
     required this.controller,
     required this.child,
+    this.dockHoldDuration = const Duration(milliseconds: 500),
   });
 
   /// The controller managing the window state.
@@ -28,6 +30,9 @@ class DragMiniGestureHandler extends StatefulWidget {
 
   /// The child widget that will receive gestures.
   final Widget child;
+
+  /// How long the user must hold stationary before docking triggers.
+  final Duration dockHoldDuration;
 
   @override
   State<DragMiniGestureHandler> createState() => _DragMiniGestureHandlerState();
@@ -37,16 +42,17 @@ class _DragMiniGestureHandlerState extends State<DragMiniGestureHandler> {
   // Track accumulated drag distance from the start point
   Offset _dragAccumulator = Offset.zero;
 
-  // Hold-to-dock timer
+  // --- Docking hold detection ---
   Timer? _dockTimer;
-  static const _dockDelay = Duration(milliseconds: 500);
-  static const _holdThreshold = 3.0; // pixels — below this = "still"
+
+  /// Movement threshold below which we consider the finger "stationary".
+  static const double _stationaryThreshold = 2.0;
 
   DragMiniWindowController get controller => widget.controller;
 
   @override
   void dispose() {
-    _dockTimer?.cancel();
+    _cancelDockTimer();
     super.dispose();
   }
 
@@ -73,7 +79,8 @@ class _DragMiniGestureHandlerState extends State<DragMiniGestureHandler> {
     _cancelDockTimer();
 
     if (controller.status == DragMiniStatus.docked) {
-      // Undock: grab from docked bar → free-form drag
+      // Dragging from docked undocks first
+      controller.undock();
       controller.startDragging(DragMiniStatus.draggingHorizontal);
     } else if (controller.status == DragMiniStatus.mini) {
       controller.startDragging(DragMiniStatus.draggingHorizontal);
@@ -94,34 +101,33 @@ class _DragMiniGestureHandlerState extends State<DragMiniGestureHandler> {
       //    Use the MAXIMUM of abs(dx) and abs(dy) so ANY direction works.
       final maxDragDistance =
           size.height * 0.5; // half screen = fully minimized
-      final dragMagnitude =
-          max(_dragAccumulator.dx.abs(), _dragAccumulator.dy.abs());
+      final dragMagnitude = max(
+        _dragAccumulator.dx.abs(),
+        _dragAccumulator.dy.abs(),
+      );
       final newProgress = (dragMagnitude / maxDragDistance).clamp(0.0, 1.0);
       controller.updateDragProgress(newProgress);
 
-      // 2. Update the mini target position to follow the finger.
+      // 2. Update the mini target position to follow the finger (both axes).
       final fingerGlobal = details.globalPosition;
       const miniW = 160.0;
       const miniH = 90.0;
-      final newDx =
-          (fingerGlobal.dx - miniW / 2).clamp(0.0, size.width - miniW);
-      final newDy =
-          (fingerGlobal.dy - miniH / 2).clamp(0.0, size.height - miniH);
+      final newDx = (fingerGlobal.dx - miniW / 2).clamp(
+        0.0,
+        size.width - miniW,
+      );
+      final newDy = (fingerGlobal.dy - miniH / 2).clamp(
+        0.0,
+        size.height - miniH,
+      );
       controller.setMiniPosition(Offset(newDx, newDy));
     } else if (controller.status == DragMiniStatus.draggingHorizontal) {
       // --- FROM MINI MODE: Free-form 2D repositioning ---
-      const miniW = 160.0;
-      const miniH = 90.0;
-      final newPos = controller.position + delta;
-      final clampedPos = Offset(
-        newPos.dx.clamp(0.0, size.width - miniW),
-        newPos.dy.clamp(0.0, size.height - miniH),
-      );
-      controller.setMiniPosition(clampedPos);
+      controller.setMiniPosition(controller.position + delta);
 
-      // Hold-to-dock: if the delta is tiny, start the dock timer.
-      // If the delta is large, cancel any pending dock timer.
-      if (delta.distance < _holdThreshold) {
+      // --- Docking hold detection ---
+      // If the finger is barely moving, start/restart the dock timer.
+      if (delta.distance < _stationaryThreshold) {
         _startDockTimerIfNeeded();
       } else {
         _cancelDockTimer();
@@ -131,6 +137,7 @@ class _DragMiniGestureHandlerState extends State<DragMiniGestureHandler> {
 
   void _onPanEnd(DragEndDetails details, BuildContext context) {
     _cancelDockTimer();
+
     final velocity = details.velocity.pixelsPerSecond;
     final progress = controller.progress;
     final speed = max(velocity.dx.abs(), velocity.dy.abs());
@@ -161,12 +168,13 @@ class _DragMiniGestureHandlerState extends State<DragMiniGestureHandler> {
     }
   }
 
-  // --- Hold-to-Dock Timer ---
+  // --- Dock timer helpers ---
 
   void _startDockTimerIfNeeded() {
-    if (_dockTimer != null) return; // already running
-    _dockTimer = Timer(_dockDelay, () {
-      if (mounted && controller.status == DragMiniStatus.draggingHorizontal) {
+    if (_dockTimer != null) return; // Already running
+    _dockTimer = Timer(widget.dockHoldDuration, () {
+      if (mounted && controller.isDragging) {
+        HapticFeedback.mediumImpact();
         controller.dock();
       }
     });

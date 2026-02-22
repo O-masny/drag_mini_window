@@ -10,9 +10,8 @@ import 'drag_mini_window_state.dart';
 /// and physics-based snapping for a YouTube-like experience.
 class DragMiniWindowController extends ChangeNotifier {
   /// Creates a [DragMiniWindowController] with an optional [initialStatus].
-  DragMiniWindowController({
-    DragMiniStatus initialStatus = DragMiniStatus.full,
-  }) : _status = initialStatus {
+  DragMiniWindowController({DragMiniStatus initialStatus = DragMiniStatus.full})
+    : _status = initialStatus {
     if (_status == DragMiniStatus.mini || _status == DragMiniStatus.docked) {
       _progress = 1.0;
     }
@@ -86,11 +85,18 @@ class DragMiniWindowController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Transitions the window to the docked (full-width bar) state.
+  /// Docks the window to a full-width bottom bar.
   void dock() {
     _stopAnimation();
     _status = DragMiniStatus.docked;
     _progress = 1.0;
+    notifyListeners();
+  }
+
+  /// Undocks the window back to a free-floating mini player.
+  void undock() {
+    _stopAnimation();
+    _status = DragMiniStatus.mini;
     notifyListeners();
   }
 
@@ -141,8 +147,8 @@ class DragMiniWindowController extends ChangeNotifier {
     required DragMiniStatus targetStatus,
     SpringDescription spring = const SpringDescription(
       mass: 1.0,
-      stiffness: 700.0,
-      damping: 40.0,
+      stiffness: 500.0,
+      damping: 28.0,
     ),
   }) {
     _stopAnimation();

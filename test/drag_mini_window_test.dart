@@ -1,5 +1,4 @@
 import 'package:drag_mini_window/drag_mini_window.dart';
-import 'package:drag_mini_window/src/drag_mini_window_state.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
