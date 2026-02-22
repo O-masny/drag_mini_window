@@ -66,10 +66,19 @@ class _DemoPageState extends State<DemoPage> {
                 const SizedBox(height: 12),
                 ListenableBuilder(
                   listenable: _controller,
-                  builder: (context, _) => Text(
-                    _controller.isMinimized ? '▶ Minimized' : '◻ Expanded',
-                    style: const TextStyle(color: Colors.white54, fontSize: 12),
-                  ),
+                  builder: (context, _) {
+                    if (_controller.isDismissed) {
+                      return FilledButton.tonal(
+                        onPressed: _controller.maximize,
+                        child: const Text('Reset / Re-open Player'),
+                      );
+                    }
+                    return Text(
+                      _controller.isMinimized ? '▶ Minimized' : '◻ Expanded',
+                      style:
+                          const TextStyle(color: Colors.white54, fontSize: 12),
+                    );
+                  },
                 ),
               ],
             ),
@@ -82,6 +91,23 @@ class _DemoPageState extends State<DemoPage> {
             miniContent: const _FakePlayer(mini: true),
             onMinimized: () => debugPrint('minimized'),
             onMaximized: () => debugPrint('maximized'),
+            onDismissed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Player dismissed (swiped or closed)'),
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            },
+            closeButton: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: const BoxDecoration(
+                color: Colors.black45,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.close_rounded,
+                  color: Colors.white, size: 20),
+            ),
           ),
         ],
       ),
