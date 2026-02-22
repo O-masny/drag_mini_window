@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:chewie/chewie.dart';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
@@ -120,7 +122,7 @@ class _VideoMiniWindowState extends State<VideoMiniWindow> {
           : null,
       miniContent: _VideoMiniContent(
         videoFrameKey: _videoFrameKey,
-        chewieController: _chewieController,
+        videoController: _videoController,
       ),
     );
   }
@@ -128,7 +130,6 @@ class _VideoMiniWindowState extends State<VideoMiniWindow> {
 
 class _VideoFrame extends StatelessWidget {
   const _VideoFrame({
-    super.key,
     required this.chewieController,
     this.isMini = false,
   });
@@ -277,29 +278,37 @@ class _VideoExpandedContent extends StatelessWidget {
 class _VideoMiniContent extends StatelessWidget {
   const _VideoMiniContent({
     required this.videoFrameKey,
-    required this.chewieController,
+    required this.videoController,
   });
 
   final GlobalKey videoFrameKey;
-  final ChewieController? chewieController;
+  final VideoPlayerController? videoController;
 
   @override
   Widget build(BuildContext context) {
-    // IMPORTANT: IgnorePointer ensures that mini video controls don't
-    // swallow gestures (taps/drags) meant for the DragMiniWindow.
     return IgnorePointer(
       child: Stack(
         fit: StackFit.expand,
         children: [
-          _VideoFrame(
-            key: videoFrameKey,
-            chewieController: chewieController,
-            isMini: true,
-          ),
+          // Raw video texture — no Chewie controls
+          if (videoController != null && videoController!.value.isInitialized)
+            SizedBox.expand(
+              key: videoFrameKey,
+              child: FittedBox(
+                fit: BoxFit.cover,
+                child: SizedBox(
+                  width: videoController!.value.size.width,
+                  height: videoController!.value.size.height,
+                  child: VideoPlayer(videoController!),
+                ),
+              ),
+            )
+          else
+            Container(key: videoFrameKey, color: Colors.black),
 
-          // Mini decoration (overlay)
+          // Gradient vignette
           Positioned.fill(
-            child: Container(
+            child: DecoratedBox(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
@@ -312,8 +321,45 @@ class _VideoMiniContent extends StatelessWidget {
               ),
             ),
           ),
+
+          // Glassmorphism play/pause pill
+          Center(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                child: ValueListenableBuilder<VideoPlayerValue>(
+                  valueListenable: videoController ?? _dummyNotifier,
+                  builder: (context, value, _) {
+                    return Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.25),
+                        ),
+                      ),
+                      child: Icon(
+                        value.isPlaying
+                            ? Icons.pause_rounded
+                            : Icons.play_arrow_rounded,
+                        color: Colors.white,
+                        size: 22,
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
+
+  static final _dummyNotifier = ValueNotifier(
+    const VideoPlayerValue.uninitialized(),
+  );
 }

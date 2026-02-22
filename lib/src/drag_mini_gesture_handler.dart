@@ -69,8 +69,16 @@ class _DragMiniGestureHandlerState extends State<DragMiniGestureHandler> {
   }
 
   void _onTap() {
-    if (controller.isMinimized) {
-      controller.maximize();
+    switch (controller.status) {
+      case DragMiniStatus.full:
+        controller.minimize();
+        break;
+      case DragMiniStatus.mini:
+      case DragMiniStatus.docked:
+        controller.maximize();
+        break;
+      default:
+        break;
     }
   }
 
@@ -123,7 +131,15 @@ class _DragMiniGestureHandlerState extends State<DragMiniGestureHandler> {
       controller.setMiniPosition(Offset(newDx, newDy));
     } else if (controller.status == DragMiniStatus.draggingHorizontal) {
       // --- FROM MINI MODE: Free-form 2D repositioning ---
-      controller.setMiniPosition(controller.position + delta);
+      // Clamp to screen bounds so the mini player can't escape.
+      const miniW = 160.0;
+      const miniH = 90.0;
+      final raw = controller.position + delta;
+      final clamped = Offset(
+        raw.dx.clamp(0.0, size.width - miniW),
+        raw.dy.clamp(0.0, size.height - miniH),
+      );
+      controller.setMiniPosition(clamped);
 
       // --- Docking hold detection ---
       // If the finger is barely moving, start/restart the dock timer.
