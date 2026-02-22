@@ -256,8 +256,7 @@ class _DragMiniWindowState extends State<DragMiniWindow>
     widget.controller.setDragProgress(progress);
     _anim.value = progress;
     _isDraggingExpanded = true;
-    setState(
-        () => _miniLanding = _clampToSafe(landing, screen, safe, miniSize));
+    _miniLanding = _clampToSafe(landing, screen, safe, miniSize);
   }
 
   void _onExpandedPanEnd(DragEndDetails d) {
@@ -268,34 +267,47 @@ class _DragMiniWindowState extends State<DragMiniWindow>
     if (progress > widget.snapThreshold ||
         velocity > widget.snapVelocityThreshold) {
       if (widget.enableHaptics && !kIsWeb) HapticFeedback.lightImpact();
-      _springTo(1.0, onComplete: () {
-        final screen = MediaQuery.sizeOf(context);
-        final safe = MediaQuery.paddingOf(context);
-        final miniSize = _currentMiniSize;
-        var landing = _miniLanding ??
-            _getDefaultMiniOrigin(
-                screen, safe, miniSize, widget.style.defaultMiniAlignment);
+      _springTo(
+        1.0,
+        onComplete: () {
+          final screen = MediaQuery.sizeOf(context);
+          final safe = MediaQuery.paddingOf(context);
+          final miniSize = _currentMiniSize;
+          var landing = _miniLanding ??
+              _getDefaultMiniOrigin(
+                screen,
+                safe,
+                miniSize,
+                widget.style.defaultMiniAlignment,
+              );
 
-        if (widget.enableEdgeSnap) {
-          final center = landing.dx + miniSize.width / 2;
-          final m = widget.style.edgeSnapMargin;
-          final dx = center < screen.width / 2
-              ? m + safe.left
-              : screen.width - miniSize.width - m - safe.right;
-          landing = Offset(
+          if (widget.enableEdgeSnap) {
+            final center = landing.dx + miniSize.width / 2;
+            final m = widget.style.edgeSnapMargin;
+            final dx = center < screen.width / 2
+                ? m + safe.left
+                : screen.width - miniSize.width - m - safe.right;
+            landing = Offset(
               dx,
-              landing.dy.clamp(m + safe.top,
-                  screen.height - miniSize.height - m - safe.bottom));
-        }
-        widget.controller.confirmMinimize(landingPosition: landing);
-        _miniLanding = null;
-        widget.onMinimized?.call();
-      });
+              landing.dy.clamp(
+                m + safe.top,
+                screen.height - miniSize.height - m - safe.bottom,
+              ),
+            );
+          }
+          widget.controller.confirmMinimize(landingPosition: landing);
+          _miniLanding = null;
+          widget.onMinimized?.call();
+        },
+      );
     } else {
-      _springTo(0.0, onComplete: () {
-        widget.controller.maximize();
-        widget.onMaximized?.call();
-      });
+      _springTo(
+        0.0,
+        onComplete: () {
+          widget.controller.maximize();
+          widget.onMaximized?.call();
+        },
+      );
     }
   }
 
@@ -308,7 +320,11 @@ class _DragMiniWindowState extends State<DragMiniWindow>
     final miniSize = _currentMiniSize;
     Offset currentPos = widget.controller.miniPosition ??
         _getDefaultMiniOrigin(
-            screen, safe, miniSize, widget.style.defaultMiniAlignment);
+          screen,
+          safe,
+          miniSize,
+          widget.style.defaultMiniAlignment,
+        );
 
     // DOCK BREAK LOGIC: If we are docked and start dragging, "break" the dock
     // and snap the player back to the finger position.
@@ -414,10 +430,15 @@ class _DragMiniWindowState extends State<DragMiniWindow>
       final dx = center < screen.width / 2
           ? m + safe.left
           : screen.width - miniSize.width - m - safe.right;
-      widget.controller.setMiniPosition(Offset(
+      widget.controller.setMiniPosition(
+        Offset(
           dx,
-          pos.dy.clamp(m + safe.top,
-              screen.height - miniSize.height - m - safe.bottom)));
+          pos.dy.clamp(
+            m + safe.top,
+            screen.height - miniSize.height - m - safe.bottom,
+          ),
+        ),
+      );
     }
   }
 
@@ -432,7 +453,6 @@ class _DragMiniWindowState extends State<DragMiniWindow>
 
         final screen = MediaQuery.sizeOf(context);
         final safe = MediaQuery.paddingOf(context);
-        final progress = widget.controller.dragProgress;
 
         return CallbackShortcuts(
           bindings: {
@@ -443,12 +463,19 @@ class _DragMiniWindowState extends State<DragMiniWindow>
             autofocus: true,
             child: Stack(
               children: [
-                _buildBackdrop(progress),
+                AnimatedBuilder(
+                  animation: _anim,
+                  builder: (context, _) => _buildBackdrop(_anim.value),
+                ),
                 if (_isDockingCandidateTop)
                   _buildPlaceholder(safe, screen, true),
                 if (_isDockingCandidateBottom)
                   _buildPlaceholder(safe, screen, false),
-                _buildWindowFrame(screen, safe, progress),
+                AnimatedBuilder(
+                  animation: _anim,
+                  builder: (context, _) =>
+                      _buildWindowFrame(screen, safe, _anim.value),
+                ),
               ],
             ),
           ),
@@ -507,7 +534,11 @@ class _DragMiniWindowState extends State<DragMiniWindow>
     final miniOrigin = _miniLanding ??
         widget.controller.miniPosition ??
         _getDefaultMiniOrigin(
-            screen, safe, miniSize, widget.style.defaultMiniAlignment);
+          screen,
+          safe,
+          miniSize,
+          widget.style.defaultMiniAlignment,
+        );
 
     Offset targetOrigin = miniOrigin;
     Size targetSize = miniSize;
@@ -515,13 +546,19 @@ class _DragMiniWindowState extends State<DragMiniWindow>
 
     if (isDocked && isMini) {
       targetOrigin = Offset(
-          0,
-          _isDockedAtTop
-              ? safe.top
-              : screen.height - safe.bottom - widget.style.dockedHeight);
+        0,
+        _isDockedAtTop
+            ? safe.top
+            : screen.height - safe.bottom - widget.style.dockedHeight,
+      );
       targetSize = Size(screen.width, widget.style.dockedHeight);
       targetRadius = 0.0;
     }
+
+    // --- High Performance Optimization ---
+    // Instead of animating L, T, W, H in Positioned (which triggers relayout),
+    // we use Positioned at full-screen/anchor and use Transform.translate/scale.
+    // This allows the GPU to handle the animation in the painting phase.
 
     final L = lerpDouble(expOrigin.dx, targetOrigin.dx, progress)!;
     final T = lerpDouble(expOrigin.dy, targetOrigin.dy, progress)!;
@@ -539,6 +576,8 @@ class _DragMiniWindowState extends State<DragMiniWindow>
         onEnter: (_) => setState(() => _isHovered = true),
         onExit: (_) => setState(() => _isHovered = false),
         child: GestureDetector(
+          behavior:
+              HitTestBehavior.opaque, // Crucial for gesture theft prevention
           onPanStart: (d) {
             _miniPanStart = d.globalPosition;
             _miniPanDistance = 0;
@@ -562,7 +601,13 @@ class _DragMiniWindowState extends State<DragMiniWindow>
             clipBehavior: Clip.antiAlias,
             child: Stack(
               children: [
-                _buildContent(isMini, isDocked, progress),
+                // IgnorePointer when dragging to prevent nested controls
+                // (like video play button) from breaking the gesture chain.
+                IgnorePointer(
+                  ignoring: _isDraggingExpanded ||
+                      (progress > 0.05 && progress < 0.95),
+                  child: _buildContent(isMini, isDocked, progress),
+                ),
                 _buildProgressBar(isMini, isDocked),
                 _buildControls(isMini, isDocked),
               ],
@@ -577,13 +622,19 @@ class _DragMiniWindowState extends State<DragMiniWindow>
     return Positioned.fill(
       child: AnimatedSwitcher(
         duration: const Duration(milliseconds: 200),
+        switchInCurve: Curves.easeIn,
+        switchOutCurve: Curves.easeOut,
         child: isDocked && isMini
             ? _buildDockedBar()
             : (progress > 0.8
                 ? KeyedSubtree(
-                    key: const ValueKey('mini'), child: widget.miniContent)
+                    key: const ValueKey('mini'),
+                    child: widget.miniContent,
+                  )
                 : KeyedSubtree(
-                    key: const ValueKey('exp'), child: widget.expandedContent)),
+                    key: const ValueKey('exp'),
+                    child: widget.expandedContent,
+                  )),
       ),
     );
   }

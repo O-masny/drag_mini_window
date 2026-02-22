@@ -11,6 +11,11 @@ import 'package:flutter/foundation.dart';
 /// controller.setPlaybackProgress(0.5); // YouTube-style progress bar
 /// ```
 class DragMiniWindowController extends ChangeNotifier {
+  DragMiniWindowController({bool initialMinimized = false}) {
+    _isMinimized = initialMinimized;
+    if (_isMinimized) _dragProgress = 1.0;
+  }
+
   bool _isMinimized = false;
   bool _isDismissed = false;
   bool _isDocked = false;
