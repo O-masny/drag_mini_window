@@ -1,3 +1,17 @@
+## 0.2.0
+
+- **YouTube Pro UX Update**: Massive rewrite for premium video player feel.
+- **Vertical Swipe Minimization**: Replaced radial drag with YouTube-style vertical swipe logic.
+- **Docked Bottom Bar**: Mini window can now dock into a full-width bottom bar.
+- **Title & Thumbnail Support**: Integrated slots for video metadata in docked/mini modes.
+- **Playback Progress Bar**: Added a thin, customizable progress bar on mini/docked views.
+- **Edge Tucking**: Mini panel can now be tucked away behind the screen edge.
+- **Web/Desktop Optimizations**: 
+  - Adaptive default sizes for web (360px width).
+  - Hover overlays and cursors for desktop.
+  - Keyboard shortcut (ESC) for status changes.
+- **Animated Transitions**: Added `AnimatedSwitcher` for smooth expanded-to-mini content swapping.
+
 ## 0.1.0
 
 - Initial release.

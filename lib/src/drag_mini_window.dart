@@ -1,6 +1,6 @@
-import 'dart:math' as math;
 import 'dart:ui';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
 import 'package:flutter/services.dart';
@@ -9,185 +9,148 @@ import 'drag_mini_window_controller.dart';
 
 /// iOS/YouTube-style drag-to-place mini window.
 ///
-/// The user drags the [expandedContent] panel — it shrinks proportionally
-/// as the finger moves and lands as a compact [miniContent] panel wherever
-/// the finger is released. Tap the mini panel to maximize.
-///
-/// ```dart
-/// DragMiniWindow(
-///   controller: _controller,
-///   expandedContent: MyVideoPlayer(),
-///   miniContent: MiniPlayer(),
-/// )
-/// ```
+/// Refined for 2025 standards with vertical swipe minimization,
+/// edge tucking, and web-optimized layouts.
 class DragMiniWindow extends StatefulWidget {
-  /// Creates a [DragMiniWindow] overlay.
   const DragMiniWindow({
     super.key,
     required this.controller,
     required this.expandedContent,
     required this.miniContent,
+    this.title,
+    this.thumbnail,
     this.expandedSize,
-    this.miniSize = const Size(160, 90),
+    this.miniSize,
+    this.webMiniSize = const Size(360, 202),
+    this.mobileMiniSize = const Size(160, 90),
     this.defaultMiniAlignment = Alignment.bottomRight,
     this.backdropColor,
     this.snapThreshold = 0.3,
     this.snapVelocityThreshold = 800.0,
-    this.animationDuration = const Duration(milliseconds: 280),
-    this.animationCurve = Curves.easeOutCubic,
+    this.animationDuration = const Duration(milliseconds: 300),
     this.enableHaptics = true,
     this.enableEdgeSnap = true,
-    this.edgeSnapMargin = 12.0,
-    this.springStiffness = 350.0,
-    this.springDamping = 28.0,
+    this.enableTuck = true,
+    this.edgeSnapMargin = 16.0,
+    this.springStiffness = 300.0,
+    this.springDamping = 30.0,
     this.borderRadius = 16.0,
     this.miniBorderRadius = 12.0,
-    this.miniBorderColor,
-    this.miniBorderWidth = 2.0,
     this.onMinimized,
     this.onMaximized,
     this.onDismissed,
+    this.onTucked,
     this.closeButton,
     this.dockedHeight = 64.0,
-    this.dockThreshold = 80.0,
-    this.dockedContent,
-    this.onDocked,
-    this.onUndocked,
+    this.progressColor = Colors.red,
   });
 
-  /// State controller. Provide a [DragMiniWindowController] and call
-  /// [DragMiniWindowController.minimize] / [maximize] / [toggle] from outside.
+  /// State controller.
   final DragMiniWindowController controller;
 
   /// Content shown when fully expanded.
   final Widget expandedContent;
 
-  /// Content shown when minimized (mini panel).
+  /// Content shown when minimized in floating mode.
   final Widget miniContent;
 
+  /// Optional title for the docked bar (YouTube style).
+  final Widget? title;
+
+  /// Optional thumbnail for the docked bar (YouTube style).
+  final Widget? thumbnail;
+
   /// Size of the expanded overlay.
-  /// Defaults to 88% width × 75% height of the screen.
   final Size? expandedSize;
 
-  /// Size of the mini floating panel. Defaults to `Size(160, 90)`.
-  final Size miniSize;
+  /// Custom mini size. If null, uses [webMiniSize] or [mobileMiniSize].
+  final Size? miniSize;
 
-  /// Corner/alignment used as the default landing position for the mini panel
-  /// before the user has dragged it anywhere. Defaults to [Alignment.bottomRight].
+  /// Mini size used on web/desktop. Defaults to 16:9 360px width.
+  final Size webMiniSize;
+
+  /// Mini size used on mobile. Defaults to 160x90.
+  final Size mobileMiniSize;
+
+  /// Corner/alignment used as the default landing position.
   final Alignment defaultMiniAlignment;
 
-  /// Backdrop overlay color. Defaults to `Colors.black` at 85% opacity.
+  /// Backdrop overlay color.
   final Color? backdropColor;
 
-  /// Drag-progress threshold (0.0–1.0) at which the panel snaps to minimized.
-  /// Defaults to `0.3`.
+  /// Drag-progress threshold (0.0–1.0) at which the panel snaps.
   final double snapThreshold;
 
-  /// Drag velocity (px/s) at which the panel always snaps regardless of
-  /// [snapThreshold]. Defaults to `800.0`.
+  /// Drag velocity (px/s) for quick snap.
   final double snapVelocityThreshold;
 
-  /// Duration of the snap-to-mini and snap-to-expanded animations.
+  /// Duration of animations.
   final Duration animationDuration;
 
-  /// Curve used for snap animations (fallback when spring is not applicable).
-  final Curve animationCurve;
-
-  /// Whether to trigger haptic feedback on minimize/maximize snaps.
-  /// Defaults to `true`.
+  /// Whether to trigger haptic feedback.
   final bool enableHaptics;
 
-  /// Whether the mini panel should snap to the nearest horizontal edge
-  /// after being released. Defaults to `true`.
+  /// Whether the mini panel should snap to horizontal edges.
   final bool enableEdgeSnap;
 
-  /// Horizontal margin from screen edge used by edge-snap. Defaults to `12.0`.
+  /// Whether the mini panel can be tucked away into the side edge.
+  final bool enableTuck;
+
+  /// Margin from screen edge.
   final double edgeSnapMargin;
 
-  /// Stiffness of the spring used for snap animations. Higher = snappier.
-  /// Defaults to `350.0`.
+  /// Spring stiffness for animations.
   final double springStiffness;
 
-  /// Damping ratio for the spring animation. Defaults to `28.0`.
+  /// Spring damping for animations.
   final double springDamping;
 
-  /// Border radius of the expanded dialog. Defaults to `16.0`.
+  /// Border radius of the expanded dialog.
   final double borderRadius;
 
-  /// Border radius of the mini panel. Defaults to `12.0`.
+  /// Border radius of the mini panel.
   final double miniBorderRadius;
 
-  /// Accent border color drawn around the mini panel. Defaults to the
-  /// theme's primary color.
-  final Color? miniBorderColor;
-
-  /// Width of the mini panel accent border. Defaults to `2.0`.
-  final double miniBorderWidth;
-
-  /// Called once when the panel is fully minimized (animation complete).
+  /// Callback when minimized.
   final VoidCallback? onMinimized;
 
-  /// Called once when the panel is fully maximized (animation complete).
+  /// Callback when maximized.
   final VoidCallback? onMaximized;
 
-  /// Called once when the panel is fully dismissed.
+  /// Callback when dismissed.
   final VoidCallback? onDismissed;
 
-  /// Optional close button widget. If provided, it will be shown in the
-  /// expanded view.
+  /// Callback when tucked away.
+  final VoidCallback? onTucked;
+
+  /// Optional close button widget.
   final Widget? closeButton;
 
-  /// Height of the docked bottom bar. Defaults to `64.0`.
+  /// Height of the docked bottom bar.
   final double dockedHeight;
 
-  /// Distance from bottom edge (in px) at which the dock zone activates.
-  /// Defaults to `80.0`.
-  final double dockThreshold;
-
-  /// Content shown when the panel is docked at the bottom.
-  /// If `null`, [miniContent] is used with full-width layout.
-  final Widget? dockedContent;
-
-  /// Called when the panel enters the dock zone.
-  final VoidCallback? onDocked;
-
-  /// Called when the panel leaves the dock zone.
-  final VoidCallback? onUndocked;
+  /// Color of the playback progress bar.
+  final Color progressColor;
 
   @override
   State<DragMiniWindow> createState() => _DragMiniWindowState();
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-
 class _DragMiniWindowState extends State<DragMiniWindow>
     with SingleTickerProviderStateMixin {
   late final AnimationController _anim;
-
-  // ── Drag-from-expanded state ──────────────────────────────────────────
-
-  /// True during a finger-down gesture on the expanded panel.
   bool _isDraggingExpanded = false;
-
-  /// The finger's current screen position during an expanded drag.
-  /// Used to derive both [_dragProgress] and the landing [_miniLanding].
   Offset _fingerPos = Offset.zero;
-
-  /// Target mini-panel position derived live during the drag.
-  /// On release this becomes the confirmed position.
   Offset? _miniLanding;
-
-  /// Last known screen size — used to detect orientation changes and
-  /// re-clamp the mini panel so it stays on screen after rotation.
   Size _lastScreen = Size.zero;
 
-  // ── Mini panel repositioning ──────────────────────────────────────────
-
+  // Repositioning state
   Offset _miniPanStart = Offset.zero;
   double _miniPanDistance = 0.0;
   static const _tapDeadZone = 8.0;
 
-  // ─────────────────────────────────────────────────────────────────────
+  // Web/Hover state
+  bool _isHovered = false;
 
   @override
   void initState() {
@@ -210,7 +173,7 @@ class _DragMiniWindowState extends State<DragMiniWindow>
   void _onControllerChange() {
     if (!_isDraggingExpanded) {
       final target = widget.controller.isMinimized ? 1.0 : 0.0;
-      if ((_anim.value - target).abs() > 0.01) {
+      if ((_anim.value - target).abs() > 0.001) {
         _springTo(target);
       }
     }
@@ -221,32 +184,15 @@ class _DragMiniWindowState extends State<DragMiniWindow>
     super.didChangeDependencies();
     final screen = MediaQuery.sizeOf(context);
     if (_lastScreen != Size.zero && _lastScreen != screen) {
-      // Orientation changed — re-clamp mini panel and stored landing position
-      // so the widget never ends up off-screen after rotation.
       final safe = MediaQuery.paddingOf(context);
-      final mini = widget.miniSize;
+      final mini = _getMiniSize(screen);
       if (widget.controller.miniPosition != null) {
         widget.controller.setMiniPosition(
           _clamp(widget.controller.miniPosition!, screen, safe, mini),
         );
       }
-      if (_miniLanding != null) {
-        _miniLanding = _clamp(_miniLanding!, screen, safe, mini);
-      }
     }
     _lastScreen = screen;
-  }
-
-  @override
-  void didUpdateWidget(DragMiniWindow oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.animationDuration != widget.animationDuration) {
-      _anim.duration = widget.animationDuration;
-    }
-    if (oldWidget.controller != widget.controller) {
-      oldWidget.controller.removeListener(_onControllerChange);
-      widget.controller.addListener(_onControllerChange);
-    }
   }
 
   @override
@@ -257,18 +203,19 @@ class _DragMiniWindowState extends State<DragMiniWindow>
     super.dispose();
   }
 
-  // ── Geometry helpers ─────────────────────────────────────────────────
+  Size _getMiniSize(Size screen) {
+    if (widget.miniSize != null) return widget.miniSize!;
+    return kIsWeb || screen.width > 600
+        ? widget.webMiniSize
+        : widget.mobileMiniSize;
+  }
 
-  /// Returns the expanded panel size, automatically adapting to orientation.
-  ///
-  /// In landscape (`width > height`) the panel fills more of the short axis
-  /// (92% height, 96% width) so it feels natural without cropping.
   Size _expandedSize(Size screen) {
     if (widget.expandedSize != null) return widget.expandedSize!;
     final isLandscape = screen.width > screen.height;
     return isLandscape
         ? Size(screen.width * 0.96, screen.height * 0.92)
-        : Size(screen.width * 0.88, screen.height * 0.75);
+        : Size(screen.width * 0.92, screen.height * 0.80);
   }
 
   Offset _expandedOrigin(Size screen, Size expSize) => Offset(
@@ -282,52 +229,36 @@ class _DragMiniWindowState extends State<DragMiniWindow>
     Size miniSize,
     Alignment alignment,
   ) {
+    final margin = widget.edgeSnapMargin;
     final available = Size(
-      screen.width - miniSize.width - 16 - safe.right,
-      screen.height - miniSize.height - 16 - safe.bottom,
+      screen.width - miniSize.width - (margin * 2) - safe.horizontal,
+      screen.height - miniSize.height - (margin * 2) - safe.vertical,
     );
-    final cx = (alignment.x + 1) / 2; // -1..1 → 0..1
+    final cx = (alignment.x + 1) / 2;
     final cy = (alignment.y + 1) / 2;
     return Offset(
-      8 + safe.left + cx * available.width,
-      8 + safe.top + cy * available.height,
+      margin + safe.left + cx * available.width,
+      margin + safe.top + cy * available.height,
     );
   }
 
-  /// Clamps [pos] so the panel (of [size]) stays fully on-screen,
-  /// respecting safe-area insets on all sides.
-  Offset _clamp(Offset pos, Size screen, EdgeInsets safe, Size size) => Offset(
-        pos.dx
-            .clamp(8.0 + safe.left, screen.width - size.width - 8 - safe.right),
-        pos.dy.clamp(
-            8.0 + safe.top, screen.height - size.height - 8 - safe.bottom),
-      );
+  Offset _clamp(Offset pos, Size screen, EdgeInsets safe, Size size) {
+    final m = widget.edgeSnapMargin;
+    return Offset(
+      pos.dx.clamp(m + safe.left, screen.width - size.width - m - safe.right),
+      pos.dy.clamp(m + safe.top, screen.height - size.height - m - safe.bottom),
+    );
+  }
 
-  /// Normalized distance of [finger] from the expanded panel center.
-  /// Using the half-diagonal of the expanded panel as max-distance gives a
-  /// stable 0→1 range that is independent of aspect-ratio / orientation.
-  double _progressFromFinger(Offset finger, Size screen) {
+  // YouTube-style vertical swipe logic
+  double _progressFromVerticalSwipe(Offset finger, Size screen) {
     final expSize = _expandedSize(screen);
-    final center = Offset(screen.width / 2, screen.height / 2);
-    final maxDist = math.sqrt(
-      math.pow(expSize.width / 2, 2) + math.pow(expSize.height / 2, 2),
-    );
-    final dist = (finger - center).distance;
-    return (dist / maxDist).clamp(0.0, 1.0);
+    final startY = (screen.height - expSize.height) / 2;
+    // Normalized distance from top of expanded panel to bottom of screen
+    final maxSwipe = screen.height - startY - 100;
+    final currentSwipe = (finger.dy - startY).clamp(0.0, maxSwipe);
+    return (currentSwipe / maxSwipe).clamp(0.0, 1.0);
   }
-
-  /// Maps the current finger position to a clamped mini-panel origin.
-  Offset _miniOriginFromFinger(
-      Offset finger, Size screen, EdgeInsets safe, Size miniSize) {
-    return _clamp(
-      Offset(finger.dx - miniSize.width / 2, finger.dy - miniSize.height / 2),
-      screen,
-      safe,
-      miniSize,
-    );
-  }
-
-  // ── Expanded-panel drag handlers ─────────────────────────────────────
 
   void _onExpandedPanStart(DragStartDetails d) {
     _isDraggingExpanded = true;
@@ -337,62 +268,56 @@ class _DragMiniWindowState extends State<DragMiniWindow>
 
   void _onExpandedPanUpdate(DragUpdateDetails d) {
     _fingerPos = d.globalPosition;
-    final safe = MediaQuery.paddingOf(context);
     final screen = MediaQuery.sizeOf(context);
-    final progress = _progressFromFinger(_fingerPos, screen);
-    final landing =
-        _miniOriginFromFinger(_fingerPos, screen, safe, widget.miniSize);
+    final safe = MediaQuery.paddingOf(context);
+    final miniSize = _getMiniSize(screen);
+
+    // YouTube style: Progress is mostly vertical
+    final progress = _progressFromVerticalSwipe(_fingerPos, screen);
+
+    // Target position lerps towards finger
+    final landing = Offset(
+      _fingerPos.dx - miniSize.width / 2,
+      _fingerPos.dy - miniSize.height / 2,
+    );
 
     widget.controller.setDragProgress(progress);
     _anim.value = progress;
-    setState(() => _miniLanding = landing);
+    setState(() => _miniLanding = _clamp(landing, screen, safe, miniSize));
   }
 
   void _onExpandedPanEnd(DragEndDetails d) {
     _isDraggingExpanded = false;
-    final speed = d.velocity.pixelsPerSecond.distance;
     final progress = widget.controller.dragProgress;
+    final velocity = d.velocity.pixelsPerSecond.dy;
 
-    // Determine whether to snap to mini or snap back.
-    final toMini =
-        progress > widget.snapThreshold || speed > widget.snapVelocityThreshold;
+    final toMini = progress > widget.snapThreshold ||
+        velocity > widget.snapVelocityThreshold;
 
     if (toMini) {
-      if (widget.enableHaptics) HapticFeedback.lightImpact();
-      _springTo(
-        1.0,
-        onComplete: () {
-          final screen = MediaQuery.sizeOf(context);
-          final safe = MediaQuery.paddingOf(context);
-          var landing = _miniLanding ??
-              _defaultMiniOrigin(
-                screen,
-                safe,
-                widget.miniSize,
-                widget.defaultMiniAlignment,
-              );
-          // Edge-snap: slide to nearest horizontal edge.
-          if (widget.enableEdgeSnap) {
-            landing = _edgeSnap(landing, screen, safe, widget.miniSize);
-          }
-          widget.controller.confirmMinimize(landingPosition: landing);
-          // Clear the ephemeral landing so subsequent repositioning
-          // (via controller.miniPosition) takes effect in build().
-          _miniLanding = null;
-          widget.onMinimized?.call();
-        },
-      );
+      if (widget.enableHaptics && !kIsWeb) HapticFeedback.lightImpact();
+      _springTo(1.0, onComplete: () {
+        final screen = MediaQuery.sizeOf(context);
+        final safe = MediaQuery.paddingOf(context);
+        final miniSize = _getMiniSize(screen);
+        var landing = _miniLanding ??
+            _defaultMiniOrigin(
+                screen, safe, miniSize, widget.defaultMiniAlignment);
+
+        if (widget.enableEdgeSnap) {
+          landing = _edgeSnap(landing, screen, safe, miniSize);
+        }
+        widget.controller.confirmMinimize(landingPosition: landing);
+        _miniLanding = null;
+        widget.onMinimized?.call();
+      });
     } else {
-      _springTo(
-        0.0,
-        onComplete: () {
-          widget.controller.maximize();
-        },
-      );
+      _springTo(0.0, onComplete: () {
+        widget.controller.maximize();
+        widget.onMaximized?.call();
+      });
     }
   }
-
-  // ── Mini-panel pan handlers ───────────────────────────────────────────
 
   void _onMiniPanStart(DragStartDetails d) {
     _miniPanStart = d.globalPosition;
@@ -405,98 +330,111 @@ class _DragMiniWindowState extends State<DragMiniWindow>
 
     final screen = MediaQuery.sizeOf(context);
     final safe = MediaQuery.paddingOf(context);
+    final miniSize = _getMiniSize(screen);
     final currentPos = widget.controller.miniPosition ??
-        _defaultMiniOrigin(
-          screen,
-          safe,
-          widget.miniSize,
-          widget.defaultMiniAlignment,
-        );
+        _defaultMiniOrigin(screen, safe, miniSize, widget.defaultMiniAlignment);
 
-    final newPos = _clamp(currentPos + d.delta, screen, safe, widget.miniSize);
+    final newPos = currentPos + d.delta;
+
+    // Check for "Tuck" (sliding past edges)
+    if (widget.enableTuck) {
+      final isPastLeft = newPos.dx < safe.left - miniSize.width * 0.5;
+      final isPastRight =
+          newPos.dx > screen.width - safe.right - miniSize.width * 0.5;
+      if (isPastLeft || isPastRight) {
+        widget.controller.setTucked(true);
+      } else {
+        widget.controller.setTucked(false);
+      }
+    }
+
     widget.controller.setMiniPosition(newPos);
 
-    // Dock zone detection: bottom edge of panel close to bottom of screen
-    final panelBottom = newPos.dy + widget.miniSize.height;
+    // Dock detection (YouTube style bar at bottom)
+    final panelBottom = newPos.dy + miniSize.height;
     final screenBottom = screen.height - safe.bottom;
-    final nearBottom = (screenBottom - panelBottom) < widget.dockThreshold;
+    final nearBottom = (screenBottom - panelBottom) < 40.0;
 
     if (nearBottom && !widget.controller.isDocked) {
+      if (widget.enableHaptics && !kIsWeb) HapticFeedback.selectionClick();
       widget.controller.setDocked(true);
-      widget.onDocked?.call();
     } else if (!nearBottom && widget.controller.isDocked) {
       widget.controller.setDocked(false);
-      widget.onUndocked?.call();
     }
   }
 
   void _onMiniPanEnd(DragEndDetails d) {
-    final speed = d.velocity.pixelsPerSecond.dx.abs();
-    final dist = (d.velocity.pixelsPerSecond.dx * 0.2)
-        .abs(); // Simple heuristic for flick distance
+    if (_miniPanDistance < _tapDeadZone) {
+      if (widget.enableHaptics && !kIsWeb) HapticFeedback.mediumImpact();
+      _springTo(0.0, onComplete: () {
+        widget.controller.maximize();
+        widget.onMaximized?.call();
+      });
+      return;
+    }
 
-    if (speed > 1000 || dist > 100) {
-      // Swipe to dismiss
-      final screen = MediaQuery.sizeOf(context);
-      final currentPos = widget.controller.miniPosition ?? Offset.zero;
-      final targetX = d.velocity.pixelsPerSecond.dx > 0
-          ? screen.width + 50.0
-          : -widget.miniSize.width - 50.0;
+    final screen = MediaQuery.sizeOf(context);
+    final safe = MediaQuery.paddingOf(context);
+    final miniSize = _getMiniSize(screen);
+    final pos = widget.controller.miniPosition ?? Offset.zero;
 
-      widget.controller.setMiniPosition(Offset(targetX, currentPos.dy));
+    // 1. Swipe to dismiss
+    final velocityX = d.velocity.pixelsPerSecond.dx;
+    if (velocityX.abs() > 1000) {
+      final targetX =
+          velocityX > 0 ? screen.width + 100.0 : -miniSize.width - 100.0;
+      widget.controller.setMiniPosition(Offset(targetX, pos.dy));
       widget.controller.confirmDismiss();
       widget.onDismissed?.call();
-    } else if (_miniPanDistance < _tapDeadZone) {
-      // Treat as tap → maximize
-      if (widget.enableHaptics) HapticFeedback.mediumImpact();
-      _springTo(
-        0.0,
-        onComplete: () {
-          widget.controller.maximize();
-          widget.onMaximized?.call();
-        },
-      );
-    } else {
-      // Finished dragging mini panel — edge snap to nearest side.
-      if (widget.enableEdgeSnap) {
-        final screen = MediaQuery.sizeOf(context);
-        final safe = MediaQuery.paddingOf(context);
-        final pos = widget.controller.miniPosition;
-        if (pos != null) {
-          widget.controller.setMiniPosition(
-            _edgeSnap(pos, screen, safe, widget.miniSize),
-          );
-        }
-      }
+      return;
+    }
+
+    // 2. Handle Tucking
+    if (widget.controller.isTucked) {
+      final isLeft = pos.dx < screen.width / 2;
+      final tuckedX = isLeft
+          ? safe.left - miniSize.width + 20.0
+          : screen.width - safe.right - 20.0;
+      widget.controller.setMiniPosition(Offset(tuckedX, pos.dy));
+      widget.onTucked?.call();
+      return;
+    }
+
+    // 3. Normal Edge Snap
+    if (widget.enableEdgeSnap && !widget.controller.isDocked) {
+      widget.controller.setMiniPosition(_edgeSnap(pos, screen, safe, miniSize));
+    } else if (widget.controller.isDocked) {
+      // Snap to bottom center for docked
+      widget.controller.setMiniPosition(Offset(
+          (screen.width - miniSize.width) / 2,
+          screen.height - safe.bottom - miniSize.height));
     }
   }
 
-  // ── Edge snap helper ──────────────────────────────────────────────────
-
-  /// Returns [pos] with `dx` adjusted to the nearest horizontal screen edge.
   Offset _edgeSnap(Offset pos, Size screen, EdgeInsets safe, Size size) {
+    final m = widget.edgeSnapMargin;
     final center = pos.dx + size.width / 2;
-    final snapLeft = widget.edgeSnapMargin + safe.left;
-    final snapRight =
-        screen.width - size.width - widget.edgeSnapMargin - safe.right;
-    final dx = center < screen.width / 2 ? snapLeft : snapRight;
-    return Offset(dx, pos.dy);
+    final dx = center < screen.width / 2
+        ? m + safe.left
+        : screen.width - size.width - m - safe.right;
+    return Offset(
+        dx,
+        pos.dy.clamp(
+            m + safe.top, screen.height - size.height - m - safe.bottom));
   }
 
-  // ── Animation snap (spring-based) ─────────────────────────────────────
-
-  /// Animate to [target] using a critically-damped spring simulation.
   void _springTo(double target, {VoidCallback? onComplete}) {
-    final spring = SpringDescription(
-      mass: 1.0,
-      stiffness: widget.springStiffness,
-      damping: widget.springDamping,
+    final sim = SpringSimulation(
+      SpringDescription(
+          mass: 1.0,
+          stiffness: widget.springStiffness,
+          damping: widget.springDamping),
+      _anim.value,
+      target,
+      0.0,
     );
-    final sim = SpringSimulation(spring, _anim.value, target, 0.0);
     _anim.animateWith(sim).whenCompleteOrCancel(onComplete ?? () {});
   }
-
-  // ── Build ─────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -509,190 +447,217 @@ class _DragMiniWindowState extends State<DragMiniWindow>
         final screen = MediaQuery.sizeOf(context);
         final safe = MediaQuery.paddingOf(context);
         final isDocked = widget.controller.isDocked;
-
+        final miniSize = _getMiniSize(screen);
         final expSize = _expandedSize(screen);
-        final miniSize = widget.miniSize;
 
-        // ── Docked state: full-width bar at the bottom ──────────────
-        if (isDocked && progress > 0.9 && !_isDraggingExpanded) {
-          final dockedWidth = screen.width;
-          final dockedH = widget.dockedHeight;
-          final dockedTop = screen.height - safe.bottom - dockedH;
-
-          return SizedBox.expand(
+        // ── Keyboard Support ──
+        return CallbackShortcuts(
+          bindings: {
+            const SingleActivator(LogicalKeyboardKey.escape): () {
+              if (widget.controller.isMinimized) {
+                widget.controller.dismiss();
+              } else {
+                widget.controller.minimize();
+              }
+            },
+          },
+          child: Focus(
+            autofocus: true,
             child: Stack(
               children: [
-                Positioned(
-                  left: 0,
-                  top: dockedTop,
-                  child: GestureDetector(
-                    onPanStart: _onMiniPanStart,
-                    onPanUpdate: _onMiniPanUpdate,
-                    onPanEnd: _onMiniPanEnd,
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      curve: Curves.easeOutCubic,
-                      width: dockedWidth,
-                      height: dockedH,
-                      decoration: BoxDecoration(
-                        color: Colors.black,
-                        border: Border(
-                          top: BorderSide(
-                            color: widget.miniBorderColor ??
-                                Theme.of(context).colorScheme.primary,
-                            width: widget.miniBorderWidth,
-                          ),
-                        ),
-                      ),
-                      child: ClipRect(
-                        child: widget.dockedContent ?? widget.miniContent,
+                // 1. Backdrop
+                if (progress < 0.99)
+                  IgnorePointer(
+                    ignoring: progress > 0.5,
+                    child: Opacity(
+                      opacity: (1.0 - progress).clamp(0.0, 1.0) * 0.8,
+                      child: GestureDetector(
+                        onTap: () => widget.controller.minimize(),
+                        child: Container(
+                            color: widget.backdropColor ?? Colors.black),
                       ),
                     ),
                   ),
-                ),
+
+                // 2. Main Window
+                _buildWindow(context, progress, screen, safe, miniSize, expSize,
+                    isDocked),
               ],
             ),
-          );
-        }
-
-        // ── Normal floating state ───────────────────────────────────
-        final currentWidth = lerpDouble(
-          expSize.width,
-          miniSize.width,
-          progress,
-        )!;
-        final currentHeight = lerpDouble(
-          expSize.height,
-          miniSize.height,
-          progress,
-        )!;
-
-        // Position lerp: center → mini landing
-        final expOrigin = _expandedOrigin(screen, expSize);
-        final miniOrigin = _miniLanding ??
-            widget.controller.miniPosition ??
-            _defaultMiniOrigin(
-              screen,
-              safe,
-              miniSize,
-              widget.defaultMiniAlignment,
-            );
-
-        final currentLeft = lerpDouble(expOrigin.dx, miniOrigin.dx, progress)!;
-        final currentTop = lerpDouble(expOrigin.dy, miniOrigin.dy, progress)!;
-
-        final baseOpacity = widget.backdropColor != null
-            ? widget.backdropColor!.a / 255.0
-            : 0.85;
-        final backdropOpacity = (baseOpacity * (1.0 - progress)).clamp(
-          0.0,
-          1.0,
+          ),
         );
+      },
+    );
+  }
 
-        final currentRadius = lerpDouble(
-          widget.borderRadius,
-          widget.miniBorderRadius,
-          progress,
-        )!;
-        final currentElevation = lerpDouble(24, 8, progress)!;
+  Widget _buildWindow(BuildContext context, double progress, Size screen,
+      EdgeInsets safe, Size miniSize, Size expSize, bool isDocked) {
+    final isMini = progress > 0.95 && !_isDraggingExpanded;
+    final expOrigin = _expandedOrigin(screen, expSize);
+    final miniOrigin = _miniLanding ??
+        widget.controller.miniPosition ??
+        _defaultMiniOrigin(screen, safe, miniSize, widget.defaultMiniAlignment);
 
-        final isMini = progress > 0.9 && !_isDraggingExpanded;
-        final accentColor =
-            widget.miniBorderColor ?? Theme.of(context).colorScheme.primary;
+    // YouTube Docked Transition
+    final effectiveMiniOrigin = isDocked && isMini
+        ? Offset(0, screen.height - safe.bottom - widget.dockedHeight)
+        : miniOrigin;
+    final effectiveMiniSize =
+        isDocked && isMini ? Size(screen.width, widget.dockedHeight) : miniSize;
 
-        return SizedBox.expand(
-          child: Stack(
-            children: [
-              // Backdrop
-              if (backdropOpacity > 0.01)
+    final currentLeft =
+        lerpDouble(expOrigin.dx, effectiveMiniOrigin.dx, progress)!;
+    final currentTop =
+        lerpDouble(expOrigin.dy, effectiveMiniOrigin.dy, progress)!;
+    final currentW =
+        lerpDouble(expSize.width, effectiveMiniSize.width, progress)!;
+    final currentH =
+        lerpDouble(expSize.height, effectiveMiniSize.height, progress)!;
+    final currentRadius = lerpDouble(
+        widget.borderRadius, isDocked ? 0 : widget.miniBorderRadius, progress)!;
+
+    return Positioned(
+      left: currentLeft,
+      top: currentTop,
+      width: currentW,
+      height: currentH,
+      child: MouseRegion(
+        cursor: isMini ? SystemMouseCursors.click : MouseCursor.defer,
+        onEnter: (_) => setState(() => _isHovered = true),
+        onExit: (_) => setState(() => _isHovered = false),
+        child: GestureDetector(
+          onPanStart: isMini ? _onMiniPanStart : _onExpandedPanStart,
+          onPanUpdate: isMini ? _onMiniPanUpdate : _onExpandedPanUpdate,
+          onPanEnd: isMini ? _onMiniPanEnd : _onExpandedPanEnd,
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.black,
+              borderRadius: BorderRadius.circular(currentRadius),
+              boxShadow: isMini
+                  ? [
+                      BoxShadow(
+                          color: Colors.black54,
+                          blurRadius: 12,
+                          spreadRadius: 2)
+                    ]
+                  : [],
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Stack(
+              children: [
+                // Content with Cross-fade
                 Positioned.fill(
-                  child: IgnorePointer(
-                    ignoring: isMini,
-                    child: GestureDetector(
-                      onTap: isMini
-                          ? null
-                          : () {
-                              _springTo(
-                                1.0,
-                                onComplete: () {
-                                  widget.controller.minimize();
-                                  widget.onMinimized?.call();
-                                },
-                              );
-                            },
-                      child: AnimatedOpacity(
-                        opacity: backdropOpacity,
-                        duration: const Duration(milliseconds: 50),
-                        child: ColoredBox(
-                          color: widget.backdropColor ?? Colors.black,
-                        ),
-                      ),
-                    ),
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 200),
+                    child: isDocked && isMini
+                        ? _buildDockedBar(context)
+                        : (progress > 0.8
+                            ? KeyedSubtree(
+                                key: const ValueKey('mini'),
+                                child: widget.miniContent)
+                            : KeyedSubtree(
+                                key: const ValueKey('exp'),
+                                child: widget.expandedContent)),
                   ),
                 ),
 
-              // Floating panel
-              Positioned(
-                left: currentLeft,
-                top: currentTop,
-                child: GestureDetector(
-                  // Pan gesture is shared — dispatch based on current mode.
-                  onPanStart: isMini ? _onMiniPanStart : _onExpandedPanStart,
-                  onPanUpdate: isMini ? _onMiniPanUpdate : _onExpandedPanUpdate,
-                  onPanEnd: isMini ? _onMiniPanEnd : _onExpandedPanEnd,
-
-                  child: Material(
-                    elevation: currentElevation,
-                    borderRadius: BorderRadius.circular(currentRadius),
-                    color: Colors.transparent,
-                    child: Container(
-                      width: currentWidth,
-                      height: currentHeight,
-                      decoration: BoxDecoration(
-                        color: Colors.black,
-                        borderRadius: BorderRadius.circular(currentRadius),
-                        border: isMini
-                            ? Border.all(
-                                color: accentColor,
-                                width: widget.miniBorderWidth,
-                              )
-                            : null,
+                // Playback progress bar (Bottom)
+                if (isMini || isDocked)
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: SizedBox(
+                      height: 2,
+                      child: LinearProgressIndicator(
+                        value: widget.controller.playbackProgress,
+                        backgroundColor: Colors.white24,
+                        color: widget.progressColor,
                       ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(currentRadius - 1),
-                        child: Stack(
+                    ),
+                  ),
+
+                // Web Controls / Hover Overlay
+                if (isMini && kIsWeb && _isHovered && !isDocked)
+                  Positioned.fill(
+                    child: Container(
+                      color: Colors.black45,
+                      child: Center(
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            isMini
-                                ? widget.miniContent
-                                : widget.expandedContent,
-                            if (!isMini && widget.closeButton != null)
-                              Positioned(
-                                top: 8,
-                                right: 8,
-                                child: GestureDetector(
-                                  onTap: () {
-                                    _springTo(
-                                      1.0,
-                                      onComplete: () {
-                                        widget.controller.minimize();
-                                        widget.onMinimized?.call();
-                                      },
-                                    );
-                                  },
-                                  child: widget.closeButton!,
-                                ),
-                              ),
+                            IconButton(
+                              icon:
+                                  const Icon(Icons.close, color: Colors.white),
+                              onPressed: () => widget.controller.dismiss(),
+                            ),
                           ],
                         ),
                       ),
                     ),
                   ),
+
+                // X Button (Always visible on mobile mini or docked)
+                if (isMini && (!kIsWeb || isDocked))
+                  Positioned(
+                    right: 4,
+                    top: 0,
+                    bottom: 0,
+                    child: Center(
+                      child: IconButton(
+                        icon: const Icon(Icons.close,
+                            color: Colors.white, size: 20),
+                        onPressed: () => widget.controller.dismiss(),
+                      ),
+                    ),
+                  ),
+
+                // Close button in expanded view
+                if (!isMini && widget.closeButton != null)
+                  Positioned(
+                    top: 16,
+                    right: 16,
+                    child: GestureDetector(
+                      onTap: () => widget.controller.minimize(),
+                      child: widget.closeButton!,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDockedBar(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      color: const Color(0xFF1E1E1E),
+      child: Row(
+        children: [
+          // Thumbnail
+          if (widget.thumbnail != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: AspectRatio(
+                aspectRatio: 16 / 9,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: widget.thumbnail,
                 ),
               ),
-            ],
+            ),
+          const SizedBox(width: 12),
+          // Title
+          Expanded(
+            child: widget.title ?? const SizedBox.shrink(),
           ),
-        );
-      },
+          // Controls placeholder (usually provided in title row or separately)
+          // For now we just keep the X which is handled in the main stack
+          const SizedBox(width: 40),
+        ],
+      ),
     );
   }
 }

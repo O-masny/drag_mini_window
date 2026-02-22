@@ -4,24 +4,19 @@ import 'package:flutter/foundation.dart';
 
 /// Controls the state of a [DragMiniWindow].
 ///
-/// Extend or listen to this via [ListenableBuilder] or [AnimatedBuilder].
-///
 /// ```dart
 /// final controller = DragMiniWindowController();
 /// controller.minimize();
 /// controller.maximize();
+/// controller.setPlaybackProgress(0.5); // YouTube-style progress bar
 /// ```
 class DragMiniWindowController extends ChangeNotifier {
   bool _isMinimized = false;
   bool _isDismissed = false;
   bool _isDocked = false;
-
-  /// Current drag/animation progress.
-  /// 0.0 = fully expanded, 1.0 = fully minimized.
+  bool _isTucked = false;
   double _dragProgress = 0.0;
-
-  /// Current free-form position of the mini panel.
-  /// `null` means "use [DragMiniWindow.defaultMiniAlignment]".
+  double _playbackProgress = 0.0;
   Offset? _miniPosition;
 
   // ── Public state ─────────────────────────────────────────────────────
@@ -35,31 +30,33 @@ class DragMiniWindowController extends ChangeNotifier {
   /// Whether the mini panel is currently docked at the bottom edge.
   bool get isDocked => _isDocked;
 
+  /// Whether the mini panel is tucked behind the screen edge.
+  bool get isTucked => _isTucked;
+
   /// Normalized progress between expanded (0.0) and minimized (1.0).
-  /// Useful for building custom interpolated effects.
   double get dragProgress => _dragProgress;
 
   /// The free-form position of the mini panel, in screen coordinates.
-  /// `null` when using the default alignment.
   Offset? get miniPosition => _miniPosition;
+
+  /// Playback progress (0.0–1.0) shown as a thin progress bar
+  /// on the mini panel or docked bar.
+  double get playbackProgress => _playbackProgress;
 
   // ── Internal setters (used by the widget) ────────────────────────────
 
-  /// Called by the widget during drag gestures.
   @internal
   void setDragProgress(double value) {
     _dragProgress = value.clamp(0.0, 1.0);
     notifyListeners();
   }
 
-  /// Called by the widget when the mini panel is repositioned via pan.
   @internal
   void setMiniPosition(Offset position) {
     _miniPosition = position;
     notifyListeners();
   }
 
-  /// Called by the widget when full minimization is confirmed.
   @internal
   void confirmMinimize({required Offset landingPosition}) {
     _isMinimized = true;
@@ -69,18 +66,24 @@ class DragMiniWindowController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Called by the widget when the panel is dismissed.
   @internal
   void confirmDismiss() {
     _isDismissed = true;
     notifyListeners();
   }
 
-  /// Called by the widget when the panel enters/exits the dock zone.
   @internal
   void setDocked(bool docked) {
     if (_isDocked != docked) {
       _isDocked = docked;
+      notifyListeners();
+    }
+  }
+
+  @internal
+  void setTucked(bool tucked) {
+    if (_isTucked != tucked) {
+      _isTucked = tucked;
       notifyListeners();
     }
   }
@@ -96,12 +99,10 @@ class DragMiniWindowController extends ChangeNotifier {
   }
 
   /// Programmatically maximize the window.
-  ///
-  /// Clears the stored [miniPosition] so the next minimize cycle starts from
-  /// [DragMiniWindow.defaultMiniAlignment] rather than the previous landing spot.
   void maximize() {
     _isDismissed = false;
     _isDocked = false;
+    _isTucked = false;
     _isMinimized = false;
     _dragProgress = 0.0;
     _miniPosition = null;
@@ -117,6 +118,7 @@ class DragMiniWindowController extends ChangeNotifier {
   /// Programmatically dock the mini panel at the bottom edge.
   void dock() {
     _isDocked = true;
+    _isTucked = false;
     _isMinimized = true;
     _dragProgress = 1.0;
     notifyListeners();
@@ -125,6 +127,24 @@ class DragMiniWindowController extends ChangeNotifier {
   /// Programmatically undock back to floating mini.
   void undock() {
     _isDocked = false;
+    notifyListeners();
+  }
+
+  /// Set the playback progress (0.0–1.0) for the mini bar indicator.
+  void setPlaybackProgress(double value) {
+    _playbackProgress = value.clamp(0.0, 1.0);
+    notifyListeners();
+  }
+
+  /// Tuck the mini panel behind the screen edge.
+  void tuck() {
+    _isTucked = true;
+    notifyListeners();
+  }
+
+  /// Untuck the mini panel from behind the screen edge.
+  void untuck() {
+    _isTucked = false;
     notifyListeners();
   }
 
