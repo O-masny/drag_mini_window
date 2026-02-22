@@ -247,16 +247,6 @@ class _VideoMiniContent extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
           ),
         ),
-        if (onClose != null)
-          Positioned(
-            top: 2,
-            right: 2,
-            child: GestureDetector(
-              onTap: onClose,
-              child: const Icon(Icons.close_rounded,
-                  color: Colors.white70, size: 16),
-            ),
-          ),
       ],
     );
   }
