@@ -27,6 +27,7 @@ class DragMiniWindowController extends ChangeNotifier {
   // --- Animation Physics ---
   Ticker? _ticker;
   Simulation? _simulation;
+  Offset? _targetPosition;
 
   /// Current status of the window state machine.
   DragMiniStatus get status => _status;
@@ -55,8 +56,8 @@ class DragMiniWindowController extends ChangeNotifier {
   /// Shim for legacy/internal compatibility; same as [progress].
   double get dragProgress => _progress;
 
-  /// Shim for legacy/internal compatibility; same as [position] if mini.
-  Offset? get miniPosition => _status == DragMiniStatus.mini ? _position : null;
+  /// Shim for legacy/internal compatibility; same as [position].
+  Offset? get miniPosition => _position;
 
   final ValueNotifier<double> _playbackProgress = ValueNotifier<double>(0.0);
 
@@ -85,12 +86,12 @@ class DragMiniWindowController extends ChangeNotifier {
   // --- Internal State Machine Logic (Used by Presentation) ---
 
   /// Updates the internal geometry of the window.
-  /// Usually called by the presentation layer during build or layout.
   @internal
   void updateInternalGeometry({required Offset position, required Size size}) {
-    _position = position;
+    if (!isDragging && _simulation == null) {
+      _position = position;
+    }
     _size = size;
-    // Don't notify here to avoid infinite loops; let status/progress changes drive builds
   }
 
   /// Sets the window to a dragging state.
@@ -104,7 +105,7 @@ class DragMiniWindowController extends ChangeNotifier {
   /// Updates the drag progress during an active gesture.
   @internal
   void updateDragProgress(double progress) {
-    _progress = progress;
+    _progress = progress.clamp(0.0, 1.0);
     notifyListeners();
   }
 
@@ -128,7 +129,8 @@ class DragMiniWindowController extends ChangeNotifier {
       damping: 40.0,
     ),
   }) {
-    _status = DragMiniStatus.draggingVertical; // Temporary state while snapping
+    _stopAnimation();
+    _status = DragMiniStatus.draggingVertical;
 
     _simulation = SpringSimulation(spring, _progress, targetProgress, velocity);
 
@@ -137,8 +139,6 @@ class DragMiniWindowController extends ChangeNotifier {
   }
 
   /// Callback for each tick of the animation ticker.
-  ///
-  /// Updates the progress based on the physics simulation.
   void _onTick(Duration elapsed) {
     if (_simulation == null) return;
 
@@ -155,21 +155,19 @@ class DragMiniWindowController extends ChangeNotifier {
   }
 
   /// Called when a physics-based snap animation completes.
-  ///
-  /// Determines the final status (full or mini) based on the final progress.
   void _onSnappingDone() {
     if (_progress < 0.2) {
       _status = DragMiniStatus.full;
+      _progress = 0.0;
     } else if (_progress > 0.8) {
       _status = DragMiniStatus.mini;
+      _progress = 1.0;
     }
     notifyListeners();
   }
 
   void _animateToStatus(DragMiniStatus target) {
     _stopAnimation();
-    // Simplified: in a real implementation, we'd use a controller-driven animation
-    // But for refactor start, we'll set it directly and let the widget handle the curve
     _status = target;
     _progress = (target == DragMiniStatus.full) ? 0.0 : 1.0;
     notifyListeners();

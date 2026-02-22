@@ -46,10 +46,8 @@ class DragMiniWindow extends StatefulWidget {
 }
 
 class _DragMiniWindowState extends State<DragMiniWindow> {
-  OverlayEntry? _overlayEntry;
-
   // GlobalKeys ensure the child widget state is preserved when
-  // moving into the Overlay.
+  // switching between expanded and mini modes in the presentation layer.
   final GlobalKey _expandedKey = GlobalKey();
   final GlobalKey _miniKey = GlobalKey();
 
@@ -57,9 +55,6 @@ class _DragMiniWindowState extends State<DragMiniWindow> {
   void initState() {
     super.initState();
     widget.controller.addListener(_onControllerChanged);
-
-    // Defer overlay insertion until after first build
-    WidgetsBinding.instance.addPostFrameCallback((_) => _updateOverlay());
   }
 
   @override
@@ -74,51 +69,29 @@ class _DragMiniWindowState extends State<DragMiniWindow> {
   @override
   void dispose() {
     widget.controller.removeListener(_onControllerChanged);
-    _removeOverlay();
     super.dispose();
   }
 
   void _onControllerChanged() {
-    if (widget.controller.isDismissed) {
-      _removeOverlay();
-    } else {
-      _updateOverlay();
-    }
-  }
-
-  void _updateOverlay() {
-    if (!mounted) return;
-
-    if (_overlayEntry == null) {
-      _overlayEntry = OverlayEntry(
-        builder: (context) => DragMiniGestureHandler(
-          controller: widget.controller,
-          child: DragMiniPresentationLayer(
-            controller: widget.controller,
-            style: widget.style,
-            title: widget.title,
-            thumbnail: widget.thumbnail,
-            expandedContent:
-                KeyedSubtree(key: _expandedKey, child: widget.expandedContent),
-            miniContent: KeyedSubtree(key: _miniKey, child: widget.miniContent),
-          ),
-        ),
-      );
-      Overlay.of(context).insert(_overlayEntry!);
-    } else {
-      _overlayEntry!.markNeedsBuild();
-    }
-  }
-
-  void _removeOverlay() {
-    _overlayEntry?.remove();
-    _overlayEntry = null;
+    // We only need to rebuild if state machine moves
+    setState(() {});
   }
 
   @override
   Widget build(BuildContext context) {
-    // The widget itself returns nothing as it hosts everything in the Overlay.
-    // However, it can return a placeholder in 'full' mode if we want layout flow parity.
-    return const SizedBox.shrink();
+    if (widget.controller.isDismissed) return const SizedBox.shrink();
+
+    return DragMiniGestureHandler(
+      controller: widget.controller,
+      child: DragMiniPresentationLayer(
+        controller: widget.controller,
+        style: widget.style,
+        title: widget.title,
+        thumbnail: widget.thumbnail,
+        expandedContent:
+            KeyedSubtree(key: _expandedKey, child: widget.expandedContent),
+        miniContent: KeyedSubtree(key: _miniKey, child: widget.miniContent),
+      ),
+    );
   }
 }

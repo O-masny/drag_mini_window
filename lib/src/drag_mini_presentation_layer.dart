@@ -50,12 +50,33 @@ class DragMiniPresentationLayer extends StatelessWidget {
             final progress = controller.progress.clamp(0.0, 1.0);
 
             // Determine Geometry
-            final miniSize =
-                style.mobileMiniSize; // Simplify for refactor start
+            final miniSize = style.mobileMiniSize;
             final expSize = screen;
 
-            final miniOrigin =
-                controller.position; // Usually set by controller/gesture
+            // Calculate default mini position (bottom right) if not yet set
+            // or if we just transitioned to mini for the first time
+            var miniOrigin = controller.position;
+            if (miniOrigin == Offset.zero) {
+              miniOrigin = Offset(
+                screen.width - miniSize.width - style.edgeSnapMargin,
+                screen.height - miniSize.height - style.edgeSnapMargin,
+              );
+              // Update controller so it knows its "mini" home
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                controller.updateInternalGeometry(
+                  position: miniOrigin,
+                  size: miniSize,
+                );
+              });
+            }
+
+            // Sync controller size regardless of mode
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              controller.updateInternalGeometry(
+                position: controller.position,
+                size: progress > 0.5 ? miniSize : expSize,
+              );
+            });
 
             // Compute Transform
             final scaleX =
@@ -63,6 +84,8 @@ class DragMiniPresentationLayer extends StatelessWidget {
             final scaleY =
                 lerpDouble(1.0, miniSize.height / expSize.height, progress)!;
 
+            // In full mode (progress 0), translateX/Y must be 0
+            // In mini mode (progress 1), translateX/Y must be miniOrigin
             final translateX = lerpDouble(0.0, miniOrigin.dx, progress)!;
             final translateY = lerpDouble(0.0, miniOrigin.dy, progress)!;
 

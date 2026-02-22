@@ -21,87 +21,63 @@ class DragMiniGestureHandler extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return RawGestureDetector(
-      gestures: {
-        VerticalDragGestureRecognizer:
-            GestureRecognizerFactoryWithHandlers<VerticalDragGestureRecognizer>(
-          () => VerticalDragGestureRecognizer(),
-          (instance) {
-            instance
-              ..onStart = _onVerticalStart
-              ..onUpdate = _onVerticalUpdate
-              ..onEnd = _onVerticalEnd;
-          },
-        ),
-        HorizontalDragGestureRecognizer: GestureRecognizerFactoryWithHandlers<
-            HorizontalDragGestureRecognizer>(
-          () => HorizontalDragGestureRecognizer(),
-          (instance) {
-            instance
-              ..onStart = _onHorizontalStart
-              ..onUpdate = _onHorizontalUpdate
-              ..onEnd = _onHorizontalEnd;
-          },
-        ),
-      },
+    return GestureDetector(
+      onPanStart: _onPanStart,
+      onPanUpdate: (details) => _onPanUpdate(details, context),
+      onPanEnd: (details) => _onPanEnd(details, context),
       child: child,
     );
   }
 
-  // --- Vertical Drag (Minimize/Maximize) ---
-
-  void _onVerticalStart(DragStartDetails details) {
-    controller.startDragging(DragMiniStatus.draggingVertical);
-  }
-
-  void _onVerticalUpdate(DragUpdateDetails details) {
-    const screenHeight = 800.0; // Should be dynamic from MediaQuery
-    final delta = details.primaryDelta! / (screenHeight * 0.5);
-    controller.updateDragProgress(controller.progress + delta);
-  }
-
-  void _onVerticalEnd(DragEndDetails details) {
-    final velocity = details.primaryVelocity ?? 0.0;
-    const spring = SpringDescription(mass: 1, stiffness: 150, damping: 15);
-    final progress = controller.progress;
-
-    if (velocity > 500 || progress > 0.5) {
-      controller.snapWithPhysics(
-        velocity: velocity / 1000,
-        targetProgress: 1.0,
-        targetStatus: DragMiniStatus.mini,
-        spring: spring,
-      );
+  void _onPanStart(DragStartDetails details) {
+    if (controller.isMinimized) {
+      controller.startDragging(DragMiniStatus.draggingHorizontal);
     } else {
-      controller.snapWithPhysics(
-        velocity: velocity / 1000,
-        targetProgress: 0.0,
-        targetStatus: DragMiniStatus.full,
-      );
+      controller.startDragging(DragMiniStatus.draggingVertical);
     }
   }
 
-  // --- Horizontal Drag (Dismiss Mini) ---
+  void _onPanUpdate(DragUpdateDetails details, BuildContext context) {
+    final size = MediaQuery.of(context).size;
+    final delta = details.delta;
 
-  void _onHorizontalStart(DragStartDetails details) {
-    if (controller.status != DragMiniStatus.mini) return;
-    controller.startDragging(DragMiniStatus.draggingHorizontal);
+    if (controller.status == DragMiniStatus.draggingVertical) {
+      // Horizontal drag doesn't affect progress in full mode usually,
+      // but vertical drag shrinks it toward mini.
+      final progressDelta = delta.dy / (size.height * 0.5);
+      controller.updateDragProgress(controller.progress + progressDelta);
+    } else if (controller.status == DragMiniStatus.draggingHorizontal) {
+      // Free form 2D movement in mini mode
+      controller.updateMiniPosition(controller.position + delta);
+    }
   }
 
-  void _onHorizontalUpdate(DragUpdateDetails details) {
-    if (controller.status != DragMiniStatus.draggingHorizontal) return;
-    // Update X position for dismissal visual
-    controller.updateMiniPosition(controller.position + details.delta);
-  }
+  void _onPanEnd(DragEndDetails details, BuildContext context) {
+    final velocity = details.velocity.pixelsPerSecond;
+    final progress = controller.progress;
 
-  void _onHorizontalEnd(DragEndDetails details) {
-    if (controller.status != DragMiniStatus.draggingHorizontal) return;
-    // Snap back or dismiss based on velocity/distance
-    final velocity = details.primaryVelocity ?? 0.0;
-    if (velocity.abs() > 800) {
-      controller.dismiss();
-    } else {
-      controller.minimize(); // Snap back
+    if (controller.status == DragMiniStatus.draggingVertical) {
+      if (velocity.dy > 500 || progress > 0.5) {
+        controller.snapWithPhysics(
+          velocity: velocity.dy / 1000,
+          targetProgress: 1.0,
+          targetStatus: DragMiniStatus.mini,
+        );
+      } else {
+        controller.snapWithPhysics(
+          velocity: velocity.dy / 1000,
+          targetProgress: 0.0,
+          targetStatus: DragMiniStatus.full,
+        );
+      }
+    } else if (controller.status == DragMiniStatus.draggingHorizontal) {
+      // Logic for snapping mini window to edges or dismissing
+      if (velocity.dx.abs() > 1000) {
+        controller.dismiss();
+      } else {
+        // Just keep the new position
+        controller.minimize();
+      }
     }
   }
 }
