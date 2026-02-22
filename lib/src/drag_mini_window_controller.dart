@@ -115,6 +115,7 @@ class DragMiniWindowController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Snaps the window to a target progress using physics simulations.
   @internal
   void snapWithPhysics({
     required double velocity,

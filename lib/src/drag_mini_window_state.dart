@@ -1,12 +1,10 @@
 import 'dart:ui';
 
-/// Formal states for the Draggable Mini Window state machine.
 /// Formalized states for the YouTube-like mini window interactions.
 enum DragMiniStatus {
   /// Window is fully expanded, covering the intended area.
   full,
 
-  /// Window is in mini floating mode at a specific position.
   /// Window is minimized to a small floating panel.
   mini,
 

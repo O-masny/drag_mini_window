@@ -145,16 +145,12 @@ class _VideoFrame extends StatelessWidget {
       );
     }
 
+    // Standard layout. Chewie handles its own internal scaling of the video texture.
+    // By letting it fill the container, we preserve logical pixel sizes for controls.
     return Container(
       color: Colors.black,
-      child: FittedBox(
-        fit: isMini ? BoxFit.cover : BoxFit.contain,
-        clipBehavior: Clip.antiAlias,
-        child: SizedBox(
-          width: chewieController!.videoPlayerController.value.size.width,
-          height: chewieController!.videoPlayerController.value.size.height,
-          child: Chewie(controller: chewieController!),
-        ),
+      child: Center(
+        child: Chewie(controller: chewieController!),
       ),
     );
   }
@@ -191,28 +187,34 @@ class _VideoExpandedContent extends StatelessWidget {
           backgroundColor: Colors.transparent,
           body: Column(
             children: [
-              // Header
+              // Header / AppBar
               Opacity(
                 opacity: contentOpacity,
-                child: AppBar(
-                  backgroundColor: Colors.transparent,
-                  elevation: 0,
-                  leading: IconButton(
-                    icon: const Icon(Icons.keyboard_arrow_down,
-                        color: Colors.white),
-                    onPressed: () => dmw.minimize(),
+                child: Padding(
+                  padding:
+                      EdgeInsets.only(top: MediaQuery.of(context).padding.top),
+                  child: SizedBox(
+                    height: 56,
+                    child: Row(
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.keyboard_arrow_down,
+                              color: Colors.white, size: 32),
+                          onPressed: () => dmw.minimize(),
+                        ),
+                        const Spacer(),
+                        if (onClose != null)
+                          IconButton(
+                            icon: const Icon(Icons.close, color: Colors.white),
+                            onPressed: onClose,
+                          ),
+                      ],
+                    ),
                   ),
-                  actions: [
-                    if (onClose != null)
-                      IconButton(
-                        icon: const Icon(Icons.close, color: Colors.white),
-                        onPressed: onClose,
-                      ),
-                  ],
                 ),
               ),
 
-              // Video
+              // Video Section
               Expanded(
                 child: Center(
                   child: AspectRatio(
@@ -226,13 +228,14 @@ class _VideoExpandedContent extends StatelessWidget {
                 ),
               ),
 
-              // Metadata
+              // Info Section
               Opacity(
                 opacity: contentOpacity,
                 child: Padding(
-                  padding: const EdgeInsets.all(24),
+                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 60),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
                         title,
@@ -246,7 +249,7 @@ class _VideoExpandedContent extends StatelessWidget {
                       Text(
                         subtitle,
                         style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.7),
+                          color: Colors.white.withOpacity(0.7),
                           fontSize: 16,
                         ),
                       ),
@@ -256,11 +259,10 @@ class _VideoExpandedContent extends StatelessWidget {
                       Text(
                         'V tomto tutoriálu se dozvíte vše potřebné pro efektivní práci se systémem ShopIO.',
                         style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.5),
+                          color: Colors.white.withOpacity(0.5),
                           height: 1.5,
                         ),
                       ),
-                      const SizedBox(height: 40),
                     ],
                   ),
                 ),
@@ -292,6 +294,8 @@ class _VideoMiniContent extends StatelessWidget {
           chewieController: chewieController,
           isMini: true,
         ),
+
+        // Mini decoration (overlay)
         Positioned.fill(
           child: Container(
             decoration: BoxDecoration(
@@ -300,7 +304,7 @@ class _VideoMiniContent extends StatelessWidget {
                 end: Alignment.bottomCenter,
                 colors: [
                   Colors.transparent,
-                  Colors.black.withValues(alpha: 0.4),
+                  Colors.black.withOpacity(0.3),
                 ],
               ),
             ),

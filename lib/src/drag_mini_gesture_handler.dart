@@ -21,6 +21,7 @@ class DragMiniGestureHandler extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
+      behavior: HitTestBehavior.opaque, // Ensure gestures are captured reliably
       onTap: _onTap,
       onPanStart: _onPanStart,
       onPanUpdate: (details) => _onPanUpdate(details, context),
@@ -36,7 +37,7 @@ class DragMiniGestureHandler extends StatelessWidget {
   }
 
   void _onPanStart(DragStartDetails details) {
-    if (controller.isMinimized) {
+    if (controller.status == DragMiniStatus.mini) {
       controller.startDragging(DragMiniStatus.draggingHorizontal);
     } else {
       controller.startDragging(DragMiniStatus.draggingVertical);
@@ -48,22 +49,12 @@ class DragMiniGestureHandler extends StatelessWidget {
     final delta = details.delta;
 
     if (controller.status == DragMiniStatus.draggingVertical) {
-      // Scale based on vertical movement
-      final progressDelta = delta.dy / (size.height * 0.8);
+      // Scale based on vertical movement relative to screen height
+      final progressDelta = delta.dy / (size.height * 0.7);
       controller.updateDragProgress(controller.progress + progressDelta);
     } else if (controller.status == DragMiniStatus.draggingHorizontal) {
-      // Free form 2D movement.
-      // If the controller doesn't have a valid position yet, we initialize it
-      // to the "natural" mini position before adding the delta.
-      var currentPos = controller.position;
-      if (currentPos == Offset.zero) {
-        // For now, we assume bottom right as the most common home
-        currentPos = Offset(
-          size.width - 160 - 16,
-          size.height - 90 - 16,
-        );
-      }
-      controller.setMiniPosition(currentPos + delta);
+      // Free form 2D movement in mini mode
+      controller.setMiniPosition(controller.position + delta);
     }
   }
 
@@ -72,7 +63,8 @@ class DragMiniGestureHandler extends StatelessWidget {
     final progress = controller.progress;
 
     if (controller.status == DragMiniStatus.draggingVertical) {
-      if (velocity.dy > 500 || progress > 0.5) {
+      // Snap to full or mini based on velocity and position
+      if (velocity.dy > 500 || progress > 0.4) {
         controller.snapWithPhysics(
           velocity: velocity.dy / 1000,
           targetProgress: 1.0,
@@ -86,11 +78,11 @@ class DragMiniGestureHandler extends StatelessWidget {
         );
       }
     } else if (controller.status == DragMiniStatus.draggingHorizontal) {
-      // Logic for snapping mini window to edges or dismissing
+      // Update status to mini (saves position definitively) or dismiss
       if (velocity.dx.abs() > 1000) {
         controller.dismiss();
       } else {
-        // Just keep the new position
+        // Just revert status from dragging to mini
         controller.minimize();
       }
     }

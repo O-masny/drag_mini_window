@@ -1,0 +1,2 @@
+[info] Missing documentation for a public member (C:\Users\masny\Desktop\portfolio\drag_mini_window\lib\src\drag_mini_window_controller.dart:119:8)
+[info] Missing documentation for a public member (C:\Users\masny\Desktop\portfolio\drag_mini_window\lib\src\drag_mini_window_state.dart:31:9)

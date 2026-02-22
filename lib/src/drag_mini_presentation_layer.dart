@@ -47,51 +47,51 @@ class DragMiniPresentationLayer extends StatelessWidget {
 
         return LayoutBuilder(
           builder: (context, constraints) {
-            final screen = constraints.biggest;
+            final screenSize = constraints.biggest;
             final progress = controller.progress.clamp(0.0, 1.0);
 
             // Determine Geometry
             final miniSize = style.mobileMiniSize;
-            final fullRect = Offset.zero & screen;
+            final fullRect = Offset.zero & screenSize;
 
-            // Calculate mini target position based on style alignment
-            final miniOrigin = Offset(
-              lerpDouble(
-                style.edgeSnapMargin,
-                screen.width - miniSize.width - style.edgeSnapMargin,
-                (style.defaultMiniAlignment.x + 1) / 2,
-              )!,
-              lerpDouble(
-                style.edgeSnapMargin,
-                screen.height - miniSize.height - style.edgeSnapMargin,
-                (style.defaultMiniAlignment.y + 1) / 2,
-              )!,
-            );
+            // 1. Ensure a stable miniHome position exists in the controller
+            if (controller.position == Offset.zero) {
+              final defaultMiniOrigin = Offset(
+                lerpDouble(
+                  style.edgeSnapMargin,
+                  screenSize.width - miniSize.width - style.edgeSnapMargin,
+                  (style.defaultMiniAlignment.x + 1) / 2,
+                )!,
+                lerpDouble(
+                  style.edgeSnapMargin,
+                  screenSize.height - miniSize.height - style.edgeSnapMargin,
+                  (style.defaultMiniAlignment.y + 1) / 2,
+                )!,
+              );
+              // Set initial position once
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                controller.setMiniPosition(defaultMiniOrigin);
+              });
+            }
 
-            // If we are in mini mode but moving, use the controller's manual position
-            final targetMiniOrigin =
-                controller.status == DragMiniStatus.draggingHorizontal
-                    ? controller.position
-                    : miniOrigin;
+            // 2. The target miniRect is based on the CONTROLLER'S stored position
+            // (which is updated during dragging and persists after drag ends)
+            final miniRect = controller.position & miniSize;
 
-            final miniRect = targetMiniOrigin & miniSize;
-
-            // Smoothly lerp between full screen and mini window
+            // 3. Smoothly lerp between full screen and the current mini position
             final currentRect = Rect.lerp(fullRect, miniRect, progress)!;
             final radius = lerpDouble(0.0, style.miniBorderRadius, progress)!;
 
-            // Backdrop should only be visible when transitioning or full
-            final showBackdrop = progress < 0.99 &&
-                controller.status != DragMiniStatus.draggingHorizontal;
+            // 4. Backdrop logic (only show when expanded/transitioning)
+            final showBackdrop = progress < 0.99;
 
             return Stack(
               children: [
-                // Backdrop (fades out as we minimize)
+                // Backdrop
                 if (showBackdrop)
                   Positioned.fill(
                     child: IgnorePointer(
-                      ignoring: progress >
-                          0.1, // Don't block app once we start shrinking
+                      ignoring: progress > 0.05,
                       child: Opacity(
                         opacity:
                             (1.0 - progress) * (style.backdropColor.a / 255.0),
