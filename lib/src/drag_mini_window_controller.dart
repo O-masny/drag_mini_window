@@ -22,12 +22,13 @@ class DragMiniWindowController extends ChangeNotifier {
   DragMiniStatus _status = DragMiniStatus.full;
   double _progress = 0.0;
   Offset _position = Offset.zero;
-  Size _size = Size.zero;
+
+  /// Current logical size of the window.
+  final Size _size = Size.zero;
 
   // --- Animation Physics ---
   Ticker? _ticker;
   Simulation? _simulation;
-  Offset? _targetPosition;
 
   /// Current status of the window state machine.
   DragMiniStatus get status => _status;
@@ -83,15 +84,13 @@ class DragMiniWindowController extends ChangeNotifier {
     _playbackProgress.value = value.clamp(0.0, 1.0);
   }
 
-  // --- Internal State Machine Logic (Used by Presentation) ---
+  // --- Internal State Machine Logic ---
 
-  /// Updates the internal geometry of the window.
+  /// Updates the internal path (position) of the mini window.
   @internal
-  void updateInternalGeometry({required Offset position, required Size size}) {
-    if (!isDragging && _simulation == null) {
-      _position = position;
-    }
-    _size = size;
+  void updateInternalPath(Offset pos) {
+    _position = pos;
+    notifyListeners();
   }
 
   /// Sets the window to a dragging state.
@@ -109,14 +108,12 @@ class DragMiniWindowController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Sets the explicit mini position (used for 2D dragging).
   @internal
-  void updateMiniPosition(Offset pos) {
+  void setMiniPosition(Offset pos) {
     _position = pos;
     notifyListeners();
   }
-
-  @internal
-  void setMiniPosition(Offset pos) => updateMiniPosition(pos);
 
   @internal
   void snapWithPhysics({
@@ -130,38 +127,22 @@ class DragMiniWindowController extends ChangeNotifier {
     ),
   }) {
     _stopAnimation();
-    _status = DragMiniStatus.draggingVertical;
-
+    // Use a transient state if needed, but here we just snap the progress
     _simulation = SpringSimulation(spring, _progress, targetProgress, velocity);
-
     _ticker ??= Ticker(_onTick);
     _ticker!.start();
   }
 
-  /// Callback for each tick of the animation ticker.
   void _onTick(Duration elapsed) {
     if (_simulation == null) return;
-
     final t = elapsed.inMicroseconds / Duration.microsecondsPerSecond;
-
-    _progress = _simulation!.x(t);
+    _progress = _simulation!.x(t).clamp(0.0, 1.0);
 
     if (_simulation!.isDone(t)) {
+      final isMini = _progress > 0.5;
+      _status = isMini ? DragMiniStatus.mini : DragMiniStatus.full;
+      _progress = isMini ? 1.0 : 0.0;
       _stopAnimation();
-      _onSnappingDone();
-    }
-
-    notifyListeners();
-  }
-
-  /// Called when a physics-based snap animation completes.
-  void _onSnappingDone() {
-    if (_progress < 0.2) {
-      _status = DragMiniStatus.full;
-      _progress = 0.0;
-    } else if (_progress > 0.8) {
-      _status = DragMiniStatus.mini;
-      _progress = 1.0;
     }
     notifyListeners();
   }

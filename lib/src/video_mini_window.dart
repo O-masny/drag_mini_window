@@ -120,10 +120,8 @@ class _VideoMiniWindowState extends State<VideoMiniWindow> {
             )
           : null,
       miniContent: _VideoMiniContent(
-        title: widget.title,
-        videoController: _videoController,
-        chewieController: _chewieController,
         videoFrameKey: _videoMiniKey,
+        chewieController: _chewieController,
       ),
     );
   }
@@ -133,28 +131,32 @@ class _VideoFrame extends StatelessWidget {
   const _VideoFrame({
     super.key,
     required this.chewieController,
-    required this.videoController,
-    required this.isMini,
+    this.isMini = false,
   });
 
   final ChewieController? chewieController;
-  final VideoPlayerController? videoController;
   final bool isMini;
 
   @override
   Widget build(BuildContext context) {
-    if (isMini) {
-      if (videoController == null || !videoController!.value.isInitialized) {
-        return Container(color: Colors.black);
-      }
-      return VideoPlayer(videoController!);
-    } else {
-      if (chewieController == null) {
-        return const Center(
-            child: CircularProgressIndicator(color: Colors.white24));
-      }
-      return Chewie(controller: chewieController!);
+    if (chewieController == null) {
+      return const Center(
+        child: CircularProgressIndicator(color: Colors.white24),
+      );
     }
+
+    return Container(
+      color: Colors.black,
+      child: FittedBox(
+        fit: isMini ? BoxFit.cover : BoxFit.contain,
+        clipBehavior: Clip.antiAlias,
+        child: SizedBox(
+          width: chewieController!.videoPlayerController.value.size.width,
+          height: chewieController!.videoPlayerController.value.size.height,
+          child: Chewie(controller: chewieController!),
+        ),
+      ),
+    );
   }
 }
 
@@ -182,72 +184,88 @@ class _VideoExpandedContent extends StatelessWidget {
     return ListenableBuilder(
       listenable: dmw,
       builder: (context, _) {
-        final progress = dmw.dragProgress;
-        return Container(
-          color: const Color(0xFF0F0F0F),
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(vertical: 20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Video Frame
-                  AspectRatio(
-                    aspectRatio: chewieController
-                            ?.videoPlayerController.value.aspectRatio ??
-                        16 / 9,
+        final progress = dmw.progress;
+        final contentOpacity = (1.0 - (progress * 3.0)).clamp(0.0, 1.0);
+
+        return Scaffold(
+          backgroundColor: Colors.transparent,
+          body: Column(
+            children: [
+              // Header
+              Opacity(
+                opacity: contentOpacity,
+                child: AppBar(
+                  backgroundColor: Colors.transparent,
+                  elevation: 0,
+                  leading: IconButton(
+                    icon: const Icon(Icons.keyboard_arrow_down,
+                        color: Colors.white),
+                    onPressed: () => dmw.minimize(),
+                  ),
+                  actions: [
+                    if (onClose != null)
+                      IconButton(
+                        icon: const Icon(Icons.close, color: Colors.white),
+                        onPressed: onClose,
+                      ),
+                  ],
+                ),
+              ),
+
+              // Video
+              Expanded(
+                child: Center(
+                  child: AspectRatio(
+                    key: videoFrameKey,
+                    aspectRatio: chewieController?.aspectRatio ?? 16 / 9,
                     child: _VideoFrame(
-                      key: videoFrameKey,
                       chewieController: chewieController,
-                      videoController: videoController,
                       isMini: false,
                     ),
                   ),
-
-                  // Metadata & Controls
-                  AnimatedOpacity(
-                    opacity: (1.0 - progress * 4).clamp(0.0, 1.0),
-                    duration: const Duration(milliseconds: 50),
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      title,
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      subtitle,
-                                      style: const TextStyle(
-                                        color: Colors.white38,
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ),
+
+              // Metadata
+              Opacity(
+                opacity: contentOpacity,
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.7),
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 32),
+                      Container(height: 2, width: 40, color: Colors.red),
+                      const SizedBox(height: 16),
+                      Text(
+                        'V tomto tutoriálu se dozvíte vše potřebné pro efektivní práci se systémem ShopIO.',
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.5),
+                          height: 1.5,
+                        ),
+                      ),
+                      const SizedBox(height: 40),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
         );
       },
@@ -257,16 +275,12 @@ class _VideoExpandedContent extends StatelessWidget {
 
 class _VideoMiniContent extends StatelessWidget {
   const _VideoMiniContent({
-    required this.title,
-    required this.videoController,
-    required this.chewieController,
     required this.videoFrameKey,
+    required this.chewieController,
   });
 
-  final String title;
-  final VideoPlayerController? videoController;
-  final ChewieController? chewieController;
   final GlobalKey videoFrameKey;
+  final ChewieController? chewieController;
 
   @override
   Widget build(BuildContext context) {
@@ -276,27 +290,20 @@ class _VideoMiniContent extends StatelessWidget {
         _VideoFrame(
           key: videoFrameKey,
           chewieController: chewieController,
-          videoController: videoController,
           isMini: true,
         ),
-        const DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [Colors.transparent, Colors.black54],
+        Positioned.fill(
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.transparent,
+                  Colors.black.withValues(alpha: 0.4),
+                ],
+              ),
             ),
-          ),
-        ),
-        Positioned(
-          left: 6,
-          right: 6,
-          bottom: 6,
-          child: Text(
-            title,
-            style: const TextStyle(color: Colors.white, fontSize: 10),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
           ),
         ),
       ],

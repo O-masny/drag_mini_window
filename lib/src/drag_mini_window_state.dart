@@ -7,6 +7,7 @@ enum DragMiniStatus {
   full,
 
   /// Window is in mini floating mode at a specific position.
+  /// Window is minimized to a small floating panel.
   mini,
 
   /// Window is docked at top or bottom as a bar.

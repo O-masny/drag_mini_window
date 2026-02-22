@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 
 import 'drag_mini_window_controller.dart';
+import 'drag_mini_window_state.dart';
 import 'drag_mini_window_style.dart';
 
 /// The actual UI layer that lives inside the Overlay.
@@ -51,78 +52,65 @@ class DragMiniPresentationLayer extends StatelessWidget {
 
             // Determine Geometry
             final miniSize = style.mobileMiniSize;
-            final expSize = screen;
+            final fullRect = Offset.zero & screen;
 
-            // Calculate default mini position (bottom right) if not yet set
-            // or if we just transitioned to mini for the first time
-            var miniOrigin = controller.position;
-            if (miniOrigin == Offset.zero) {
-              miniOrigin = Offset(
+            // Calculate mini target position based on style alignment
+            final miniOrigin = Offset(
+              lerpDouble(
+                style.edgeSnapMargin,
                 screen.width - miniSize.width - style.edgeSnapMargin,
+                (style.defaultMiniAlignment.x + 1) / 2,
+              )!,
+              lerpDouble(
+                style.edgeSnapMargin,
                 screen.height - miniSize.height - style.edgeSnapMargin,
-              );
-              // Update controller so it knows its "mini" home
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                controller.updateInternalGeometry(
-                  position: miniOrigin,
-                  size: miniSize,
-                );
-              });
-            }
+                (style.defaultMiniAlignment.y + 1) / 2,
+              )!,
+            );
 
-            // Sync controller size regardless of mode
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              controller.updateInternalGeometry(
-                position: controller.position,
-                size: progress > 0.5 ? miniSize : expSize,
-              );
-            });
+            // If we are in mini mode but moving, use the controller's manual position
+            final targetMiniOrigin =
+                controller.status == DragMiniStatus.draggingHorizontal
+                    ? controller.position
+                    : miniOrigin;
 
-            // Compute Transform
-            final scaleX =
-                lerpDouble(1.0, miniSize.width / expSize.width, progress)!;
-            final scaleY =
-                lerpDouble(1.0, miniSize.height / expSize.height, progress)!;
+            final miniRect = targetMiniOrigin & miniSize;
 
-            // In full mode (progress 0), translateX/Y must be 0
-            // In mini mode (progress 1), translateX/Y must be miniOrigin
-            final translateX = lerpDouble(0.0, miniOrigin.dx, progress)!;
-            final translateY = lerpDouble(0.0, miniOrigin.dy, progress)!;
-
+            // Smoothly lerp between full screen and mini window
+            final currentRect = Rect.lerp(fullRect, miniRect, progress)!;
             final radius = lerpDouble(0.0, style.miniBorderRadius, progress)!;
+
+            // Backdrop should only be visible when transitioning or full
+            final showBackdrop = progress < 0.99 &&
+                controller.status != DragMiniStatus.draggingHorizontal;
 
             return Stack(
               children: [
-                // Backdrop
-                if (progress < 0.99)
+                // Backdrop (fades out as we minimize)
+                if (showBackdrop)
                   Positioned.fill(
-                    child: Opacity(
-                      opacity:
-                          (1.0 - progress) * (style.backdropColor.a / 255.0),
-                      child: Container(color: style.backdropColor),
+                    child: IgnorePointer(
+                      ignoring: progress >
+                          0.1, // Don't block app once we start shrinking
+                      child: Opacity(
+                        opacity:
+                            (1.0 - progress) * (style.backdropColor.a / 255.0),
+                        child: Container(color: style.backdropColor),
+                      ),
                     ),
                   ),
 
                 // Main Window
-                Positioned(
-                  left: 0,
-                  top: 0,
-                  width: expSize.width,
-                  height: expSize.height,
-                  child: Transform(
-                    transform: Matrix4.identity()
-                      ..translate(translateX, translateY)
-                      ..scale(scaleX, scaleY),
-                    alignment: Alignment.topLeft,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: style.windowBackgroundColor,
-                        borderRadius: BorderRadius.circular(radius / scaleX),
-                        boxShadow: progress > 0.8 ? style.shadows : null,
-                      ),
-                      clipBehavior: Clip.antiAlias,
-                      child: _buildContent(progress),
+                Positioned.fromRect(
+                  rect: currentRect,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: style.windowBackgroundColor,
+                      borderRadius: BorderRadius.circular(radius),
+                      boxShadow: progress > 0.8 ? style.shadows : null,
                     ),
+                    clipBehavior: Clip.antiAlias,
+                    child: _buildContent(progress),
                   ),
                 ),
               ],

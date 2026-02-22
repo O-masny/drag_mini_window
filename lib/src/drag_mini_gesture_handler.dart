@@ -1,4 +1,3 @@
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import 'drag_mini_window_controller.dart';
@@ -22,11 +21,18 @@ class DragMiniGestureHandler extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
+      onTap: _onTap,
       onPanStart: _onPanStart,
       onPanUpdate: (details) => _onPanUpdate(details, context),
       onPanEnd: (details) => _onPanEnd(details, context),
       child: child,
     );
+  }
+
+  void _onTap() {
+    if (controller.isMinimized) {
+      controller.maximize();
+    }
   }
 
   void _onPanStart(DragStartDetails details) {
@@ -42,13 +48,22 @@ class DragMiniGestureHandler extends StatelessWidget {
     final delta = details.delta;
 
     if (controller.status == DragMiniStatus.draggingVertical) {
-      // Horizontal drag doesn't affect progress in full mode usually,
-      // but vertical drag shrinks it toward mini.
-      final progressDelta = delta.dy / (size.height * 0.5);
+      // Scale based on vertical movement
+      final progressDelta = delta.dy / (size.height * 0.8);
       controller.updateDragProgress(controller.progress + progressDelta);
     } else if (controller.status == DragMiniStatus.draggingHorizontal) {
-      // Free form 2D movement in mini mode
-      controller.updateMiniPosition(controller.position + delta);
+      // Free form 2D movement.
+      // If the controller doesn't have a valid position yet, we initialize it
+      // to the "natural" mini position before adding the delta.
+      var currentPos = controller.position;
+      if (currentPos == Offset.zero) {
+        // For now, we assume bottom right as the most common home
+        currentPos = Offset(
+          size.width - 160 - 16,
+          size.height - 90 - 16,
+        );
+      }
+      controller.setMiniPosition(currentPos + delta);
     }
   }
 
