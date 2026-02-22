@@ -5,7 +5,9 @@ description: >
   compact floating panel. Spring physics, haptic feedback, edge snapping,
   and adaptive sizing for mobile, tablet, and web.
 version: 0.1.0
-homepage: https://github.com/masny/drag_mini_window
+homepage: https://github.com/O-masny/drag_mini_window
+repository: https://github.com/O-masny/drag_mini_window
+issue_tracker: https://github.com/O-masny/drag_mini_window/issues
 
 topics:
   - ui

@@ -19,6 +19,7 @@ import 'drag_mini_window_controller.dart';
 /// )
 /// ```
 class DragMiniWindow extends StatefulWidget {
+  /// Creates a [DragMiniWindow] overlay.
   const DragMiniWindow({
     super.key,
     required this.controller,
@@ -181,9 +182,9 @@ class _DragMiniWindowState extends State<DragMiniWindow>
       widget.expandedSize ?? Size(screen.width * 0.88, screen.height * 0.75);
 
   Offset _expandedOrigin(Size screen, Size expSize) => Offset(
-    (screen.width - expSize.width) / 2,
-    (screen.height - expSize.height) / 2,
-  );
+        (screen.width - expSize.width) / 2,
+        (screen.height - expSize.height) / 2,
+      );
 
   Offset _defaultMiniOrigin(
     Size screen,
@@ -201,9 +202,9 @@ class _DragMiniWindowState extends State<DragMiniWindow>
   }
 
   Offset _clamp(Offset pos, Size screen, Size size) => Offset(
-    pos.dx.clamp(8.0, screen.width - size.width - 8),
-    pos.dy.clamp(8.0, screen.height - size.height - 8),
-  );
+        pos.dx.clamp(8.0, screen.width - size.width - 8),
+        pos.dy.clamp(8.0, screen.height - size.height - 8),
+      );
 
   /// Normalized distance of [finger] from screen center (0 = center, 1 = corner).
   double _progressFromFinger(Offset finger, Size screen) {
@@ -258,8 +259,7 @@ class _DragMiniWindowState extends State<DragMiniWindow>
         onComplete: () {
           final screen = MediaQuery.sizeOf(context);
           final safe = MediaQuery.paddingOf(context);
-          final landing =
-              _miniLanding ??
+          final landing = _miniLanding ??
               _defaultMiniOrigin(
                 screen,
                 safe,
@@ -293,8 +293,7 @@ class _DragMiniWindowState extends State<DragMiniWindow>
 
     final screen = MediaQuery.sizeOf(context);
     final safe = MediaQuery.paddingOf(context);
-    final currentPos =
-        widget.controller.miniPosition ??
+    final currentPos = widget.controller.miniPosition ??
         _defaultMiniOrigin(
           screen,
           safe,
@@ -355,8 +354,7 @@ class _DragMiniWindowState extends State<DragMiniWindow>
 
         // Position lerp: center → mini landing
         final expOrigin = _expandedOrigin(screen, expSize);
-        final miniOrigin =
-            _miniLanding ??
+        final miniOrigin = _miniLanding ??
             widget.controller.miniPosition ??
             _defaultMiniOrigin(
               screen,

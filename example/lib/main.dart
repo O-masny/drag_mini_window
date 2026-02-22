@@ -5,7 +5,9 @@ import 'package:flutter/material.dart';
 
 void main() => runApp(const App());
 
+/// Root application widget for the drag_mini_window demo.
 class App extends StatelessWidget {
+  /// Creates the [App].
   const App({super.key});
 
   @override
@@ -18,7 +20,9 @@ class App extends StatelessWidget {
   }
 }
 
+/// Main demo page showing a [DragMiniWindow] with a fake video player.
 class DemoPage extends StatefulWidget {
+  /// Creates the [DemoPage].
   const DemoPage({super.key});
 
   @override
@@ -144,15 +148,15 @@ class _FakePlayerState extends State<_FakePlayer> {
           Container(
             color: const Color(0xFF1A1A2E),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Row(
+            child: const Row(
               children: [
-                const Icon(
+                Icon(
                   Icons.movie_rounded,
                   color: Colors.white54,
                   size: 18,
                 ),
-                const SizedBox(width: 8),
-                const Expanded(
+                SizedBox(width: 8),
+                Expanded(
                   child: Text(
                     'drag_mini_window demo video',
                     style: TextStyle(color: Colors.white, fontSize: 14),
@@ -160,7 +164,7 @@ class _FakePlayerState extends State<_FakePlayer> {
                   ),
                 ),
                 // Drag hint
-                const Text(
+                Text(
                   '↕ drag to place',
                   style: TextStyle(color: Colors.white38, fontSize: 11),
                 ),

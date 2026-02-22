@@ -70,9 +70,13 @@ class DragMiniWindowController extends ChangeNotifier {
   }
 
   /// Programmatically maximize the window.
+  ///
+  /// Clears the stored [miniPosition] so the next minimize cycle starts from
+  /// [DragMiniWindow.defaultMiniAlignment] rather than the previous landing spot.
   void maximize() {
     _isMinimized = false;
     _dragProgress = 0.0;
+    _miniPosition = null;
     notifyListeners();
   }
 
